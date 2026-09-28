@@ -205,9 +205,13 @@ def main() -> None:
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     safe_name = best_name.lower().replace(" ", "_")
     model_path = MODEL_DIR / f"qb_{safe_name}.joblib"
-    joblib.dump(best_model, model_path)
+    best_model_path = MODEL_DIR / "qb_best_model.joblib"
 
-    print(f"\nSaved validation-selected model to: {model_path}")
+    joblib.dump(best_model, model_path)
+    joblib.dump(best_model, best_model_path)
+
+    print(f"\nSaved selected model to: {model_path}")
+    print(f"Best-model alias:         {best_model_path}")
 
 
 if __name__ == "__main__":
