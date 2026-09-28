@@ -27,6 +27,7 @@ PLAYER_FILE = PROCESSED_DIR / "player_weekly_2021_2026.csv"
 TEAM_FILE = PROCESSED_DIR / "team_weekly_2021_2026.csv"
 SNAP_FILE = PROCESSED_DIR / "snap_counts_2021_2026.csv"
 PLAYERS_FILE = ROOT / "data" / "raw" / "players.csv"
+SCHEDULE_FILE = ROOT / "data" / "raw" / "games.csv"
 OUTPUT_FILE = PROCESSED_DIR / "qb_model_dataset.csv"
 
 
@@ -208,6 +209,69 @@ def add_home_away(qbs: pd.DataFrame) -> pd.DataFrame:
     return qbs
 
 
+def add_game_context_features(qbs: pd.DataFrame) -> pd.DataFrame:
+    """Add pregame schedule, rest, environment, and market context."""
+    games = pd.read_csv(SCHEDULE_FILE, low_memory=False)
+
+    if "game_type" in games.columns:
+        games = games[games["game_type"].eq("REG")].copy()
+
+    wanted = [
+        "game_id",
+        "home_team",
+        "away_team",
+        "location",
+        "away_rest",
+        "home_rest",
+        "spread_line",
+        "total_line",
+        "roof",
+        "surface",
+        "temp",
+        "wind",
+    ]
+    wanted = [name for name in wanted if name in games.columns]
+    games = games[wanted].drop_duplicates("game_id")
+
+    qbs = qbs.merge(games, how="left", on="game_id")
+    is_home = qbs["home_away"].eq("home")
+
+    if {"home_rest", "away_rest"}.issubset(qbs.columns):
+        qbs["team_rest"] = np.where(
+            is_home,
+            pd.to_numeric(qbs["home_rest"], errors="coerce"),
+            pd.to_numeric(qbs["away_rest"], errors="coerce"),
+        )
+        qbs["opponent_rest"] = np.where(
+            is_home,
+            pd.to_numeric(qbs["away_rest"], errors="coerce"),
+            pd.to_numeric(qbs["home_rest"], errors="coerce"),
+        )
+        qbs["rest_advantage"] = qbs["team_rest"] - qbs["opponent_rest"]
+
+    if "spread_line" in qbs.columns:
+        spread = pd.to_numeric(qbs["spread_line"], errors="coerce")
+        qbs["team_spread_line"] = np.where(is_home, spread, -spread)
+
+    if "total_line" in qbs.columns:
+        qbs["game_total_line"] = pd.to_numeric(
+            qbs["total_line"], errors="coerce"
+        )
+
+    if "temp" in qbs.columns:
+        qbs["game_temp"] = pd.to_numeric(qbs["temp"], errors="coerce")
+
+    if "wind" in qbs.columns:
+        qbs["game_wind"] = pd.to_numeric(qbs["wind"], errors="coerce")
+
+    if "location" in qbs.columns:
+        qbs["neutral_site"] = (
+            qbs["location"].astype(str).str.lower().eq("neutral").astype(int)
+        )
+
+    return qbs
+
+
 def add_snap_role_features(qbs: pd.DataFrame) -> pd.DataFrame:
     """Add prior-game offensive snap share as a leakage-safe role proxy."""
     snaps = pd.read_csv(SNAP_FILE, low_memory=False)
@@ -292,6 +356,7 @@ def main() -> None:
 
     qbs["custom_fantasy_points"] = custom_fantasy_points(qbs)
     qbs = add_home_away(qbs)
+    qbs = add_game_context_features(qbs)
     qbs = add_player_rolling_features(qbs)
     qbs = add_snap_role_features(qbs)
 
@@ -329,6 +394,16 @@ def main() -> None:
         "team",
         "opponent",
         "home_away",
+        "team_rest",
+        "opponent_rest",
+        "rest_advantage",
+        "neutral_site",
+        "roof",
+        "surface",
+        "game_temp",
+        "game_wind",
+        "team_spread_line",
+        "game_total_line",
         "previous_offense_pct",
         "avg_offense_pct_last_3",
         "avg_offense_pct_last_5",
