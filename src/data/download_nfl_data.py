@@ -3,6 +3,7 @@
 Phase 1 downloads:
 - weekly player stats, 2021-2026
 - weekly team stats, 2021-2026
+- weekly snap counts, 2021-2026
 - player metadata
 
 The files are stored under data/raw/ and are ignored by Git.
@@ -53,6 +54,13 @@ def team_stats_url(season: int) -> str:
     )
 
 
+def snap_counts_url(season: int) -> str:
+    return (
+        f"{NFLVERSE_RELEASE}/snap_counts/"
+        f"snap_counts_{season}.csv"
+    )
+
+
 def players_url() -> str:
     return f"{NFLVERSE_RELEASE}/players/players.csv"
 
@@ -69,6 +77,10 @@ def download_datasets(start_season: int, end_season: int) -> None:
         download_file(
             team_stats_url(season),
             RAW_DIR / f"stats_team_week_{season}.csv",
+        )
+        download_file(
+            snap_counts_url(season),
+            RAW_DIR / f"snap_counts_{season}.csv",
         )
 
     download_file(players_url(), RAW_DIR / "players.csv")
