@@ -37,7 +37,7 @@ IDENTIFIER_COLUMNS = {
     "week",
 }
 
-CATEGORICAL_FEATURES = ["team", "opponent", "home_away"]
+CATEGORICAL_FEATURES = ["team", "opponent", "home_away", "roof", "surface"]
 
 
 def evaluate(name: str, y_true: pd.Series, y_pred) -> dict[str, float | str]:
