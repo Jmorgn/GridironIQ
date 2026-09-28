@@ -216,3 +216,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# GridironIQ generated data
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Local ML artifacts
+models/
+mlruns/
+*.joblib
+*.pkl
+
+# Azure/local credentials
+.azure/
