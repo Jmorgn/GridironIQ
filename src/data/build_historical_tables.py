@@ -3,10 +3,12 @@
 Reads:
 - data/raw/stats_player_week_YYYY.csv
 - data/raw/stats_team_week_YYYY.csv
+- data/raw/snap_counts_YYYY.csv
 
 Writes:
 - data/processed/player_weekly_2021_2026.csv
 - data/processed/team_weekly_2021_2026.csv
+- data/processed/snap_counts_2021_2026.csv
 """
 
 from pathlib import Path
@@ -64,9 +66,16 @@ def main() -> None:
         f"team_weekly_{START_SEASON}_{END_SEASON}.csv",
     )
 
+    print("\nCombining snap count data...")
+    snaps = combine_yearly_files(
+        "snap_counts",
+        f"snap_counts_{START_SEASON}_{END_SEASON}.csv",
+    )
+
     print("\nDone.")
     print(f"Player rows: {len(players):,}")
     print(f"Team rows:   {len(teams):,}")
+    print(f"Snap rows:   {len(snaps):,}")
     print(f"Processed data: {PROCESSED_DIR}")
 
 
