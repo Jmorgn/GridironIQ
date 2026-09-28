@@ -5,6 +5,7 @@ Phase 1 downloads:
 - weekly team stats, 2021-2026
 - weekly snap counts, 2021-2026
 - game/schedule context (rest, venue/weather, betting lines)
+- weekly injury reports, 2021-2026
 - player metadata
 
 The files are stored under data/raw/ and are ignored by Git.
@@ -74,6 +75,13 @@ def depth_charts_url(season: int) -> str:
     )
 
 
+def injuries_url(season: int) -> str:
+    return (
+        f"{NFLVERSE_RELEASE}/injuries/"
+        f"injuries_{season}.csv"
+    )
+
+
 def players_url() -> str:
     return f"{NFLVERSE_RELEASE}/players/players.csv"
 
@@ -98,6 +106,10 @@ def download_datasets(start_season: int, end_season: int) -> None:
         download_file(
             depth_charts_url(season),
             RAW_DIR / f"depth_charts_{season}.csv",
+        )
+        download_file(
+            injuries_url(season),
+            RAW_DIR / f"injuries_{season}.csv",
         )
 
     download_file(schedules_url(), RAW_DIR / "games.csv")
