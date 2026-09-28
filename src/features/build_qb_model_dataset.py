@@ -25,6 +25,8 @@ PROCESSED_DIR = ROOT / "data" / "processed"
 
 PLAYER_FILE = PROCESSED_DIR / "player_weekly_2021_2026.csv"
 TEAM_FILE = PROCESSED_DIR / "team_weekly_2021_2026.csv"
+SNAP_FILE = PROCESSED_DIR / "snap_counts_2021_2026.csv"
+PLAYERS_FILE = ROOT / "data" / "raw" / "players.csv"
 OUTPUT_FILE = PROCESSED_DIR / "qb_model_dataset.csv"
 
 
@@ -111,7 +113,9 @@ def add_player_rolling_features(qbs: pd.DataFrame) -> pd.DataFrame:
         "rushing_tds": "rush_tds",
     }
 
-    group_keys = ["player_id", "season"]
+    # Group by player only so Week 1 can use the player's final games from the
+    # previous season. shift(1) still guarantees the current game is excluded.
+    group_keys = ["player_id"]
 
     for source, short_name in stat_map.items():
         if source not in qbs.columns:
@@ -184,7 +188,7 @@ def build_defense_features(team: pd.DataFrame) -> pd.DataFrame:
     for metric in metrics:
         for window in (3, 5):
             defense[f"opp_avg_{metric}_last_{window}"] = (
-                defense.groupby(["defense_team", "season"], sort=False)[metric]
+                defense.groupby(["defense_team"], sort=False)[metric]
                 .transform(lambda s: s.shift(1).rolling(window, min_periods=1).mean())
             )
 
@@ -194,6 +198,78 @@ def build_defense_features(team: pd.DataFrame) -> pd.DataFrame:
         for window in (3, 5)
     ]
     return defense[keep]
+
+
+def add_home_away(qbs: pd.DataFrame) -> pd.DataFrame:
+    """Derive home/away from nflverse game_id (season_week_away_home)."""
+    qbs = qbs.copy()
+    home_team = qbs["game_id"].astype(str).str.split("_").str[-1]
+    qbs["home_away"] = np.where(qbs["team"].eq(home_team), "home", "away")
+    return qbs
+
+
+def add_snap_role_features(qbs: pd.DataFrame) -> pd.DataFrame:
+    """Add prior-game offensive snap share as a leakage-safe role proxy."""
+    snaps = pd.read_csv(SNAP_FILE, low_memory=False)
+    players = pd.read_csv(PLAYERS_FILE, low_memory=False)
+
+    id_map = players[["gsis_id", "pfr_id"]].dropna().drop_duplicates("gsis_id")
+    snaps = snaps[snaps["position"].eq("QB")].copy()
+
+    snaps["offense_pct"] = pd.to_numeric(
+        snaps["offense_pct"], errors="coerce"
+    )
+
+    qbs = qbs.merge(
+        id_map,
+        how="left",
+        left_on="player_id",
+        right_on="gsis_id",
+    )
+
+    snap_cols = [
+        "pfr_player_id",
+        "season",
+        "week",
+        "team",
+        "offense_snaps",
+        "offense_pct",
+    ]
+    snaps = snaps[snap_cols].drop_duplicates(
+        ["pfr_player_id", "season", "week", "team"]
+    )
+
+    qbs = qbs.merge(
+        snaps,
+        how="left",
+        left_on=["pfr_id", "season", "week", "team"],
+        right_on=["pfr_player_id", "season", "week", "team"],
+    )
+
+    qbs = qbs.sort_values(["player_id", "season", "week"]).copy()
+
+    # IMPORTANT: only PRIOR games are used. Current-week snap share would leak
+    # knowledge of how much the QB actually played in the game being predicted.
+    qbs["previous_offense_pct"] = (
+        qbs.groupby("player_id", sort=False)["offense_pct"].shift(1)
+    )
+
+    for window in (3, 5):
+        qbs[f"avg_offense_pct_last_{window}"] = (
+            qbs.groupby("player_id", sort=False)["offense_pct"]
+            .transform(lambda s: s.shift(1).rolling(window, min_periods=1).mean())
+        )
+        qbs[f"start_like_games_last_{window}"] = (
+            qbs.groupby("player_id", sort=False)["offense_pct"]
+            .transform(
+                lambda s: s.shift(1)
+                .ge(50)
+                .rolling(window, min_periods=1)
+                .sum()
+            )
+        )
+
+    return qbs
 
 
 def main() -> None:
@@ -215,7 +291,9 @@ def main() -> None:
     qbs = qbs[activity > 0].copy()
 
     qbs["custom_fantasy_points"] = custom_fantasy_points(qbs)
+    qbs = add_home_away(qbs)
     qbs = add_player_rolling_features(qbs)
+    qbs = add_snap_role_features(qbs)
 
     defense = build_defense_features(team)
 
@@ -250,6 +328,12 @@ def main() -> None:
         "week",
         "team",
         "opponent",
+        "home_away",
+        "previous_offense_pct",
+        "avg_offense_pct_last_3",
+        "avg_offense_pct_last_5",
+        "start_like_games_last_3",
+        "start_like_games_last_5",
         "previous_fp",
         "avg_fp_last_3",
         "avg_fp_last_5",
