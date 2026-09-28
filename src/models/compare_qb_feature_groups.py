@@ -78,6 +78,25 @@ ROLE = [
 HOME_AWAY = ["home_away"]
 TEAM_IDENTITIES = ["team", "opponent"]
 
+REST_CONTEXT = [
+    "team_rest",
+    "opponent_rest",
+    "rest_advantage",
+    "neutral_site",
+]
+
+ENVIRONMENT = [
+    "roof",
+    "surface",
+    "game_temp",
+    "game_wind",
+]
+
+MARKET_CONTEXT = [
+    "team_spread_line",
+    "game_total_line",
+]
+
 
 def available(df: pd.DataFrame, columns: list[str]) -> list[str]:
     return [column for column in columns if column in df.columns]
@@ -154,13 +173,21 @@ def main() -> None:
     role = available(df, ROLE)
     home = available(df, HOME_AWAY)
     identities = available(df, TEAM_IDENTITIES)
+    rest = available(df, REST_CONTEXT)
+    environment = available(df, ENVIRONMENT)
+    market = available(df, MARKET_CONTEXT)
+
+    current = qb + opp + role + home + identities
 
     experiments = [
         ("1. QB history only", qb),
         ("2. + opponent defense", qb + opp),
         ("3. + role / snap share", qb + opp + role),
         ("4. + home / away", qb + opp + role + home),
-        ("5. + team / opponent IDs", qb + opp + role + home + identities),
+        ("5. + team / opponent IDs", current),
+        ("6. + rest / neutral site", current + rest),
+        ("7. + environment", current + rest + environment),
+        ("8. + betting market", current + rest + environment + market),
     ]
 
     results = []
@@ -173,7 +200,8 @@ def main() -> None:
 
     for experiment_name, features in experiments:
         categorical = [
-            c for c in features if c in {"team", "opponent", "home_away"}
+            c for c in features
+            if c in {"team", "opponent", "home_away", "roof", "surface"}
         ]
         numeric = [c for c in features if c not in categorical]
 
