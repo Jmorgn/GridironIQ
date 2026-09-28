@@ -283,6 +283,135 @@ def normalize_team_code(series: pd.Series) -> pd.Series:
     )
 
 
+def add_injury_features(qbs: pd.DataFrame) -> pd.DataFrame:
+    """Add pregame QB injury-report and practice-participation features."""
+    frames = []
+
+    for season in range(2021, 2027):
+        path = ROOT / "data" / "raw" / f"injuries_{season}.csv"
+        if path.exists():
+            frame = pd.read_csv(path, low_memory=False)
+            frames.append(frame)
+
+    qbs = qbs.copy()
+
+    injury_columns = [
+        "on_injury_report",
+        "injury_questionable",
+        "injury_doubtful",
+        "injury_out",
+        "practice_dnp",
+        "practice_limited",
+        "practice_full",
+        "injury_status_score",
+    ]
+
+    if not frames:
+        for column in injury_columns:
+            qbs[column] = np.nan
+        return qbs
+
+    injuries = pd.concat(frames, ignore_index=True)
+
+    if "season_type" in injuries.columns:
+        injuries = injuries[
+            injuries["season_type"].astype(str).eq("REG")
+        ].copy()
+
+    if "position" in injuries.columns:
+        injuries = injuries[
+            injuries["position"].astype(str).eq("QB")
+        ].copy()
+
+    injuries["team_injury"] = normalize_team_code(
+        injuries["team"].astype(str)
+    )
+
+    injuries["date_modified_parsed"] = pd.to_datetime(
+        injuries.get("date_modified"),
+        errors="coerce",
+        utc=True,
+    )
+
+    # Keep the latest weekly report record for each QB/team/week.
+    injuries = (
+        injuries.sort_values("date_modified_parsed")
+        .drop_duplicates(
+            ["gsis_id", "season", "week", "team_injury"],
+            keep="last",
+        )
+        .copy()
+    )
+
+    report_status = (
+        injuries.get("report_status", pd.Series("", index=injuries.index))
+        .fillna("")
+        .astype(str)
+        .str.lower()
+    )
+    practice_status = (
+        injuries.get("practice_status", pd.Series("", index=injuries.index))
+        .fillna("")
+        .astype(str)
+        .str.lower()
+    )
+
+    injuries["on_injury_report"] = 1.0
+    injuries["injury_questionable"] = report_status.str.contains(
+        "questionable", regex=False
+    ).astype(float)
+    injuries["injury_doubtful"] = report_status.str.contains(
+        "doubtful", regex=False
+    ).astype(float)
+    injuries["injury_out"] = report_status.str.fullmatch(
+        r".*\bout\b.*"
+    ).astype(float)
+
+    injuries["practice_dnp"] = (
+        practice_status.str.contains("did not", regex=False)
+        | practice_status.str.contains("dnp", regex=False)
+    ).astype(float)
+    injuries["practice_limited"] = practice_status.str.contains(
+        "limited", regex=False
+    ).astype(float)
+    injuries["practice_full"] = practice_status.str.contains(
+        "full", regex=False
+    ).astype(float)
+
+    injuries["injury_status_score"] = (
+        injuries["injury_questionable"] * 1
+        + injuries["injury_doubtful"] * 2
+        + injuries["injury_out"] * 3
+    )
+
+    keep = [
+        "gsis_id",
+        "season",
+        "week",
+        "team_injury",
+        *injury_columns,
+    ]
+
+    qbs = qbs.merge(
+        injuries[keep],
+        how="left",
+        left_on=["player_id", "season", "week", "team"],
+        right_on=["gsis_id", "season", "week", "team_injury"],
+    )
+
+    # No injury-report match means the player was not listed that week.
+    for column in injury_columns:
+        qbs[column] = qbs[column].fillna(0.0)
+
+    return qbs.drop(
+        columns=[
+            name
+            for name in ["gsis_id", "team_injury"]
+            if name in qbs.columns
+        ]
+    )
+
+
 def add_depth_chart_features(qbs: pd.DataFrame) -> pd.DataFrame:
     """Add pregame QB depth-chart rank across the 2021-2026 schema change.
 
@@ -520,6 +649,7 @@ def main() -> None:
     qbs["custom_fantasy_points"] = custom_fantasy_points(qbs)
     qbs = add_home_away(qbs)
     qbs = add_game_context_features(qbs)
+    qbs = add_injury_features(qbs)
     qbs = add_depth_chart_features(qbs)
     qbs = add_player_rolling_features(qbs)
     qbs = add_snap_role_features(qbs)
@@ -570,6 +700,14 @@ def main() -> None:
         "game_total_line",
         "depth_chart_qb_rank",
         "listed_qb1",
+        "on_injury_report",
+        "injury_questionable",
+        "injury_doubtful",
+        "injury_out",
+        "practice_dnp",
+        "practice_limited",
+        "practice_full",
+        "injury_status_score",
         "previous_offense_pct",
         "avg_offense_pct_last_3",
         "avg_offense_pct_last_5",
