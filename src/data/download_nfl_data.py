@@ -4,6 +4,7 @@ Phase 1 downloads:
 - weekly player stats, 2021-2026
 - weekly team stats, 2021-2026
 - weekly snap counts, 2021-2026
+- game/schedule context (rest, venue/weather, betting lines)
 - player metadata
 
 The files are stored under data/raw/ and are ignored by Git.
@@ -61,6 +62,11 @@ def snap_counts_url(season: int) -> str:
     )
 
 
+def schedules_url() -> str:
+    # nflverse schedule source maintained in the nfldata repository.
+    return "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv"
+
+
 def players_url() -> str:
     return f"{NFLVERSE_RELEASE}/players/players.csv"
 
@@ -83,6 +89,7 @@ def download_datasets(start_season: int, end_season: int) -> None:
             RAW_DIR / f"snap_counts_{season}.csv",
         )
 
+    download_file(schedules_url(), RAW_DIR / "games.csv")
     download_file(players_url(), RAW_DIR / "players.csv")
     print(f"\nDone. Raw data is in: {RAW_DIR}")
 
