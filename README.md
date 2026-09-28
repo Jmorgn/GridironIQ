@@ -35,15 +35,31 @@ Azure Machine Learning
 Weekly predictions / fantasy decision engine
 ```
 
-## Phase 1
+## Phase 1 — QB Model v1
 
-1. Download weekly player and team statistics for 2021-2026.
-2. Build custom fantasy scoring.
-3. Create QB rolling features without data leakage.
-4. Train a baseline linear regression model.
-5. Compare it with tree-based regression models.
-6. Evaluate predictions with MAE, RMSE, and R-squared.
-7. Hold out 2026 as the live/test season.
+Completed milestones:
+
+1. Download weekly player/team stats, snap counts, schedules, depth charts, and supporting metadata.
+2. Reconstruct the league's custom fantasy scoring from weekly nflverse data.
+3. Build leakage-safe rolling QB and opponent-defense features.
+4. Add role/snap-share, home/away, rest, venue/weather, betting-market, and pregame depth-chart context.
+5. Compare Linear Regression, Random Forest, and Gradient Boosting with walk-forward validation.
+6. Hold 2026 out of model selection as the live/demo season.
+
+### QB Model v1 Benchmark
+
+The selected model is a Random Forest evaluated with walk-forward validation:
+
+| Fold | Train | Test | MAE |
+| --- | --- | --- | ---: |
+| 1 | 2021-2022 | 2023 | 8.560 |
+| 2 | 2021-2023 | 2024 | 8.534 |
+| 3 | 2021-2024 | 2025 | 8.316 |
+| **Average** | — | **2023-2025** | **8.470** |
+
+The simple Last-3 fantasy-points baseline averaged **9.639 MAE**, so QB Model v1 reduced MAE by **12.1%** across the three unseen-season folds.
+
+The current 2026 live/demo snapshot produced **8.187 MAE on 109 QB-games** after fitting the selected model on 2021-2025. That number is not used for model selection and will change as the season grows.
 
 ## Repository Structure
 
@@ -70,6 +86,10 @@ Initial data comes from the nflverse project:
 
 - Weekly player statistics
 - Weekly team statistics
+- Snap counts
+- Schedules and game context
+- Depth charts
+- Injury/practice reports
 - Player metadata
 
 Raw downloaded data is intentionally excluded from Git. The ingestion script reproduces it locally.
@@ -96,9 +116,17 @@ Example features will include:
 - opponent passing touchdowns allowed
 - opponent sacks and interceptions
 - home/away status
+- rest and neutral-site context
+- roof, surface, temperature, and wind
+- pregame spread and game total
+- QB depth-chart rank / QB1 status
 
 All predictive features must be calculated from games that happened before the game being predicted.
 
+## Phase 2 — Availability and Personnel
+
+The next QB experiments add official weekly injury-report and practice-participation signals. A later candidate-table upgrade will represent expected fantasy options before kickoff, including players who may record zero game activity.
+
 ## Long-Term Roadmap
 
-Later phases will add RB/WR/TE models, weather, stadium type, travel, rest, injuries, depth charts, defensive personnel changes, betting markets, Next Gen Stats, uncertainty ranges, player correlation, and matchup-level win-probability recommendations.
+Later phases will add RB/WR/TE models, travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, uncertainty ranges, player correlation, and matchup-level win-probability recommendations.
