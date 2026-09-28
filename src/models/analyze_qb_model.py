@@ -16,7 +16,7 @@ from sklearn.metrics import mean_absolute_error
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_FILE = ROOT / "data" / "processed" / "qb_model_dataset.csv"
-MODEL_FILE = ROOT / "models" / "qb_random_forest.joblib"
+MODEL_FILE = ROOT / "models" / "qb_best_model.joblib"
 OUTPUT_FILE = ROOT / "data" / "processed" / "qb_2026_predictions.csv"
 
 TARGET = "actual_fantasy_points"
