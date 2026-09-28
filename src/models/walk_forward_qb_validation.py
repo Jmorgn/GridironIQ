@@ -39,7 +39,7 @@ IDENTIFIER_COLUMNS = {
     "week",
 }
 
-CATEGORICAL_FEATURES = ["team", "opponent", "home_away"]
+CATEGORICAL_FEATURES = ["team", "opponent", "home_away", "roof", "surface"]
 
 FOLDS = [
     {"train_start": 2021, "train_end": 2022, "test_season": 2023},
