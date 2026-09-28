@@ -175,15 +175,29 @@ def build_history_snapshots() -> pd.DataFrame:
 
 
 def add_prior_player_history(candidates: pd.DataFrame) -> pd.DataFrame:
-    history = build_history_snapshots().sort_values(
-        ["_week_key", "player_id"]
-    )
+    history = build_history_snapshots().copy()
 
     candidates = candidates.copy()
     candidates["_week_key"] = week_key(candidates)
+
+    # merge_asof requires the join keys to have exactly the same dtype.
+    # Some depth-chart seasons store week as a float (for example 2.0),
+    # while the player-history table stores it as an integer. Normalize both
+    # sides before the time-aware join.
+    candidates["_week_key"] = pd.to_numeric(
+        candidates["_week_key"], errors="raise"
+    ).astype("int64")
+    history["_week_key"] = pd.to_numeric(
+        history["_week_key"], errors="raise"
+    ).astype("int64")
+
+    candidates["player_id"] = candidates["player_id"].astype(str)
+    history["player_id"] = history["player_id"].astype(str)
+
     candidates["_candidate_order"] = np.arange(len(candidates))
 
     left = candidates.sort_values(["_week_key", "player_id"]).copy()
+    history = history.sort_values(["_week_key", "player_id"]).copy()
 
     merged = pd.merge_asof(
         left,
