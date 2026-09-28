@@ -125,7 +125,9 @@ All predictive features must be calculated from games that happened before the g
 
 ## Phase 2 — Availability and Personnel
 
-The next QB experiments add official weekly injury-report and practice-participation signals. A later candidate-table upgrade will represent expected fantasy options before kickoff, including players who may record zero game activity.
+The first injury/practice experiment did **not** improve the active-QB model: walk-forward MAE moved from **8.472** to **8.478**. Those features are therefore not part of the current v1 model.
+
+That result is expected to be limited by the current training table, which only contains QBs who recorded game activity. The next v2 step is a pregame candidate table built from depth charts so the model can learn zero-participation cases such as ruled-out or inactive QBs.
 
 ## Long-Term Roadmap
 
