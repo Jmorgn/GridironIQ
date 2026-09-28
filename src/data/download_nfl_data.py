@@ -67,6 +67,13 @@ def schedules_url() -> str:
     return "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv"
 
 
+def depth_charts_url(season: int) -> str:
+    return (
+        f"{NFLVERSE_RELEASE}/depth_charts/"
+        f"depth_charts_{season}.csv"
+    )
+
+
 def players_url() -> str:
     return f"{NFLVERSE_RELEASE}/players/players.csv"
 
@@ -87,6 +94,10 @@ def download_datasets(start_season: int, end_season: int) -> None:
         download_file(
             snap_counts_url(season),
             RAW_DIR / f"snap_counts_{season}.csv",
+        )
+        download_file(
+            depth_charts_url(season),
+            RAW_DIR / f"depth_charts_{season}.csv",
         )
 
     download_file(schedules_url(), RAW_DIR / "games.csv")
