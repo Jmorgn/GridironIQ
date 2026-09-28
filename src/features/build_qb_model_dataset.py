@@ -218,6 +218,7 @@ def add_game_context_features(qbs: pd.DataFrame) -> pd.DataFrame:
 
     wanted = [
         "game_id",
+        "gameday",
         "home_team",
         "away_team",
         "location",
@@ -270,6 +271,168 @@ def add_game_context_features(qbs: pd.DataFrame) -> pd.DataFrame:
         )
 
     return qbs
+
+
+def normalize_team_code(series: pd.Series) -> pd.Series:
+    """Normalize a few provider-specific team abbreviations."""
+    return series.replace(
+        {
+            "LAR": "LA",
+            "WSH": "WAS",
+        }
+    )
+
+
+def add_depth_chart_features(qbs: pd.DataFrame) -> pd.DataFrame:
+    """Add pregame QB depth-chart rank across the 2021-2026 schema change.
+
+    2021-2024 depth charts are weekly and join directly by season/week/team.
+    2025+ depth charts are timestamped snapshots, so we use the most recent
+    snapshot no later than the game date and no more than five days old.
+    """
+    qbs = qbs.copy()
+    qbs["_row_id"] = np.arange(len(qbs))
+
+    qbs["depth_chart_qb_rank"] = np.nan
+
+    # ----- 2021-2024 weekly schema -----
+    old_frames = []
+    for season in range(2021, 2025):
+        path = ROOT / "data" / "raw" / f"depth_charts_{season}.csv"
+        if path.exists():
+            old_frames.append(pd.read_csv(path, low_memory=False))
+
+    if old_frames:
+        old = pd.concat(old_frames, ignore_index=True)
+
+        if "game_type" in old.columns:
+            old = old[old["game_type"].eq("REG")].copy()
+
+        if "position" in old.columns:
+            old = old[old["position"].astype(str).eq("QB")].copy()
+
+        old["team_dc"] = normalize_team_code(old["club_code"].astype(str))
+        old["depth_chart_qb_rank_old"] = pd.to_numeric(
+            old["depth_team"], errors="coerce"
+        )
+
+        old_keep = old[
+            [
+                "gsis_id",
+                "season",
+                "week",
+                "team_dc",
+                "depth_chart_qb_rank_old",
+            ]
+        ].drop_duplicates(
+            ["gsis_id", "season", "week", "team_dc"],
+            keep="first",
+        )
+
+        qbs = qbs.merge(
+            old_keep,
+            how="left",
+            left_on=["player_id", "season", "week", "team"],
+            right_on=["gsis_id", "season", "week", "team_dc"],
+        )
+
+        old_mask = qbs["season"].le(2024)
+        qbs.loc[old_mask, "depth_chart_qb_rank"] = qbs.loc[
+            old_mask, "depth_chart_qb_rank_old"
+        ]
+
+        qbs = qbs.drop(
+            columns=[
+                col_name
+                for col_name in [
+                    "gsis_id",
+                    "team_dc",
+                    "depth_chart_qb_rank_old",
+                ]
+                if col_name in qbs.columns
+            ]
+        )
+
+    # ----- 2025+ timestamped schema -----
+    new_frames = []
+    for season in range(2025, 2027):
+        path = ROOT / "data" / "raw" / f"depth_charts_{season}.csv"
+        if path.exists():
+            frame = pd.read_csv(path, low_memory=False)
+            frame["_depth_season"] = season
+            new_frames.append(frame)
+
+    if new_frames and "gameday" in qbs.columns:
+        new = pd.concat(new_frames, ignore_index=True)
+
+        if "pos_abb" in new.columns:
+            new = new[new["pos_abb"].astype(str).eq("QB")].copy()
+
+        new["team_dc"] = normalize_team_code(new["team"].astype(str))
+        new["depth_dt"] = pd.to_datetime(
+            new["dt"], errors="coerce", utc=True
+        ).dt.tz_convert(None)
+        new["depth_date"] = new["depth_dt"].dt.normalize()
+        new["depth_chart_qb_rank_new"] = pd.to_numeric(
+            new["pos_rank"], errors="coerce"
+        )
+
+        gameside = qbs[qbs["season"].ge(2025)][
+            ["_row_id", "player_id", "team", "gameday"]
+        ].copy()
+        gameside["game_date"] = pd.to_datetime(
+            gameside["gameday"], errors="coerce"
+        ).dt.normalize()
+
+        candidates = gameside.merge(
+            new[
+                [
+                    "gsis_id",
+                    "team_dc",
+                    "depth_date",
+                    "depth_chart_qb_rank_new",
+                ]
+            ],
+            how="left",
+            left_on=["player_id", "team"],
+            right_on=["gsis_id", "team_dc"],
+        )
+
+        valid = candidates[
+            candidates["depth_date"].notna()
+            & candidates["game_date"].notna()
+            & (candidates["depth_date"] <= candidates["game_date"])
+            & (
+                candidates["depth_date"]
+                >= candidates["game_date"] - pd.Timedelta(days=5)
+            )
+        ].copy()
+
+        if not valid.empty:
+            latest = (
+                valid.sort_values(
+                    ["_row_id", "depth_date", "depth_chart_qb_rank_new"],
+                    ascending=[True, False, True],
+                )
+                .drop_duplicates("_row_id", keep="first")
+                [["_row_id", "depth_chart_qb_rank_new"]]
+            )
+
+            rank_map = latest.set_index("_row_id")[
+                "depth_chart_qb_rank_new"
+            ]
+            current_mask = qbs["season"].ge(2025)
+            qbs.loc[current_mask, "depth_chart_qb_rank"] = (
+                qbs.loc[current_mask, "_row_id"].map(rank_map)
+            )
+
+    qbs["listed_qb1"] = np.where(
+        qbs["depth_chart_qb_rank"].notna(),
+        qbs["depth_chart_qb_rank"].eq(1).astype(float),
+        np.nan,
+    )
+
+    return qbs.drop(columns=["_row_id"])
 
 
 def add_snap_role_features(qbs: pd.DataFrame) -> pd.DataFrame:
@@ -357,6 +520,7 @@ def main() -> None:
     qbs["custom_fantasy_points"] = custom_fantasy_points(qbs)
     qbs = add_home_away(qbs)
     qbs = add_game_context_features(qbs)
+    qbs = add_depth_chart_features(qbs)
     qbs = add_player_rolling_features(qbs)
     qbs = add_snap_role_features(qbs)
 
@@ -404,6 +568,8 @@ def main() -> None:
         "game_wind",
         "team_spread_line",
         "game_total_line",
+        "depth_chart_qb_rank",
+        "listed_qb1",
         "previous_offense_pct",
         "avg_offense_pct_last_3",
         "avg_offense_pct_last_5",
