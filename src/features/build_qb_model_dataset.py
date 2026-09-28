@@ -227,9 +227,17 @@ def main() -> None:
     )
 
     # Friendly model-table names.
+    # The nflverse source already contains both player_name (short name) and
+    # player_display_name (full display name). Renaming player_display_name to
+    # player_name would create two columns with the same label, so build a new
+    # unambiguous model column instead.
+    if "player_display_name" in qbs.columns:
+        qbs["model_player_name"] = qbs["player_display_name"]
+    else:
+        qbs["model_player_name"] = qbs["player_name"]
+
     qbs = qbs.rename(
         columns={
-            "player_display_name": "player_name",
             "opponent_team": "opponent",
             "custom_fantasy_points": "actual_fantasy_points",
         }
@@ -237,7 +245,7 @@ def main() -> None:
 
     output_columns = [
         "player_id",
-        "player_name",
+        "model_player_name",
         "season",
         "week",
         "team",
@@ -272,7 +280,10 @@ def main() -> None:
 
     # Keep only columns that exist, making the script tolerant of source-schema changes.
     output_columns = [c for c in output_columns if c in qbs.columns]
-    model = qbs[output_columns].sort_values(["season", "week", "player_name"])
+    model = qbs[output_columns].rename(
+        columns={"model_player_name": "player_name"}
+    )
+    model = model.sort_values(["season", "week", "player_name"])
 
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     model.to_csv(OUTPUT_FILE, index=False)
