@@ -127,7 +127,9 @@ All predictive features must be calculated from games that happened before the g
 
 The first injury/practice experiment did **not** improve the active-QB model: walk-forward MAE moved from **8.472** to **8.478**. Those features are therefore not part of the current v1 model.
 
-That result is expected to be limited by the current training table, which only contains QBs who recorded game activity. The next v2 step is a pregame candidate table built from depth charts so the model can learn zero-participation cases such as ruled-out or inactive QBs.
+That result is expected to be limited by the current training table, which only contains QBs who recorded game activity. A depth-chart candidate audit found **7,344 historical QB candidate rows (2021-2025)**, with **56.5% recording zero QB activity**. Among **2,960 QB1 candidate rows**, **19.8% recorded zero QB activity**.
+
+Before treating those QB1 rows as zero-point training examples, the repository includes a second validation audit that checks snap counts, injury reports, and whether another QB actually played for the team that week.
 
 ## Long-Term Roadmap
 
