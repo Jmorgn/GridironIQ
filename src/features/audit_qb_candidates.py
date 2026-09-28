@@ -64,7 +64,7 @@ def load_depth_candidates() -> pd.DataFrame:
         games = games[games["game_type"].astype(str).eq("REG")]
 
     game_rows = []
-    for _, game in games[games["season"].between(2025, 2026)].iterrows():
+    for _, game in games[games["season"].between(2021, 2026)].iterrows():
         game_date = pd.to_datetime(game.get("gameday"), errors="coerce")
         if pd.isna(game_date):
             continue
@@ -148,6 +148,19 @@ def load_depth_candidates() -> pd.DataFrame:
         ["player_id", "season", "week", "team"]
     )
 
+    # Older weekly depth charts also contain entries during bye weeks.
+    # A fantasy candidate row should exist only when that team actually has a
+    # scheduled regular-season game that week.
+    scheduled_team_weeks = game_team[
+        ["season", "week", "team"]
+    ].drop_duplicates()
+
+    candidates = candidates.merge(
+        scheduled_team_weeks,
+        how="inner",
+        on=["season", "week", "team"],
+    )
+
     candidates["listed_qb1"] = (
         candidates["depth_chart_qb_rank"].eq(1).astype(int)
     )
@@ -169,6 +182,7 @@ def main() -> None:
         activity.gt(0),
         ["player_id", "season", "week", "team"],
     ].drop_duplicates()
+    active["team"] = normalize_team(active["team"].astype(str))
     active["recorded_activity"] = 1
 
     audit = candidates.merge(
