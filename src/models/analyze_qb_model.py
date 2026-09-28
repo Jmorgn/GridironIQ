@@ -28,7 +28,7 @@ IDENTIFIER_COLUMNS = {
     "week",
 }
 
-CATEGORICAL_FEATURES = ["team", "opponent", "home_away"]
+CATEGORICAL_FEATURES = ["team", "opponent", "home_away", "roof", "surface"]
 
 
 def main() -> None:
