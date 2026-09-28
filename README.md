@@ -129,7 +129,9 @@ The first injury/practice experiment did **not** improve the active-QB model: wa
 
 That result is expected to be limited by the current training table, which only contains QBs who recorded game activity. An initial depth-chart candidate audit exposed an important data-quality issue: older weekly depth charts also contain entries during team bye weeks. Those rows must not become zero-point fantasy training examples.
 
-The candidate audit now filters depth-chart rows against the actual regular-season schedule before measuring zero activity. A second validation audit checks snap counts, injury reports, and whether another QB actually played for the team that week before v2 training rows are accepted.
+The candidate audit now filters depth-chart rows against the actual regular-season schedule before measuring zero activity. After removing bye-week contamination, the 2021-2025 audit found **6,716 historical QB candidate rows**. Among **2,702 QB1 candidate rows**, **12.1% recorded zero QB activity**.
+
+A deeper validation checked those 327 zero-activity QB1 rows: only **3.4%** still showed offensive snaps, while **98.8%** had another QB active for the same team/week. That supports using these rows as real availability/replacement examples for the v2 pregame candidate dataset rather than treating them as simple join failures.
 
 ## Long-Term Roadmap
 
