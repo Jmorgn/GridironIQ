@@ -155,6 +155,35 @@ The production top-role-per-team gate is used because it performed best on the f
 
 The v1 **8.470 MAE** and v2 **5.321 all-candidate MAE** are not directly comparable because v1 evaluates only QBs who recorded game activity, while v2 includes the entire pregame depth-chart candidate pool, including inactive and zero-point rows.
 
+## Weekly Workflow
+
+After the QB v2 models have been trained once, the normal weekly workflow is a single command:
+
+```cmd
+py run_weekly.py
+```
+
+That command:
+
+1. refreshes the live 2026 nflverse files and schedule/results data;
+2. rebuilds the processed historical tables;
+3. rebuilds the QB v2 pregame candidate dataset;
+4. loads the saved QB v2 model bundle and generates the earliest upcoming week's rankings.
+
+The main weekly output is:
+
+```text
+data/processed/qb_v2_weekly_rankings.csv
+```
+
+All future QB candidates and their role probabilities are also saved to:
+
+```text
+data/processed/qb_v2_all_future_candidates.csv
+```
+
+Use `py run_weekly.py --retrain` only when intentionally refitting the official QB v2 models. Normal weekly refreshes do not need to retrain the 2021-2025 model.
+
 ## Long-Term Roadmap
 
 Later phases will add RB/WR/TE models, travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, uncertainty ranges, player correlation, and matchup-level win-probability recommendations.
