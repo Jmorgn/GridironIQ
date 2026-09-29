@@ -167,7 +167,7 @@ def main() -> None:
             role_probability * conditional_points
         )
         predictions["gridironiq_v2_fantasy_points"] = np.where(
-            selected.eq(1),
+            selected == 1,
             conditional_points,
             0.0,
         )
