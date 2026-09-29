@@ -189,6 +189,11 @@ def evaluate_fold(
         0.0,
     )
     expected_points = role_probability * conditional_points
+    hard_gate_points = np.where(
+        role_probability >= 0.50,
+        conditional_points,
+        0.0,
+    )
 
     direct_model = make_regressor(features)
     direct_model.fit(X_train, train[TARGET])
@@ -198,6 +203,7 @@ def evaluate_fold(
 
     for name, pred in [
         ("Two-stage expected points", expected_points),
+        ("Two-stage hard gate", hard_gate_points),
         ("Direct candidate regressor", direct_points),
     ]:
         mae, rmse = regression_metrics(test[TARGET], pred)
@@ -264,7 +270,7 @@ def evaluate_fold(
         f"Recall={classifier_row['role_recall']:.3f}"
     )
 
-    for row in rows[:2]:
+    for row in rows[:3]:
         print(
             f"{row['model']:<28} "
             f"ALL={row['mae_all_candidates']:.3f}  "
@@ -325,6 +331,11 @@ def fit_and_predict_future(
     out["expected_fantasy_points"] = (
         out["meaningful_role_probability"]
         * out["conditional_fantasy_points"]
+    )
+    out["hard_gate_fantasy_points"] = np.where(
+        out["meaningful_role_probability"].ge(0.50),
+        out["conditional_fantasy_points"],
+        0.0,
     )
     out["direct_fantasy_points"] = np.maximum(
         direct_model.predict(X),
@@ -458,6 +469,7 @@ def main() -> None:
                     "meaningful_role_probability": "{:.1%}".format,
                     "conditional_fantasy_points": "{:.2f}".format,
                     "expected_fantasy_points": "{:.2f}".format,
+                    "hard_gate_fantasy_points": "{:.2f}".format,
                     "direct_fantasy_points": "{:.2f}".format,
                 },
             )
@@ -469,6 +481,12 @@ def main() -> None:
         "\nImportant: v1's 8.470 MAE was measured on QBs who recorded game "
         "activity. v2's all-candidate MAE includes inactive/zero-point rows, "
         "so those two headline MAEs are not an apples-to-apples comparison."
+    )
+    print(
+        "The soft two-stage prediction is an expected-value estimate. Because "
+        "GridironIQ primarily scores models with MAE, the fixed 50% hard gate "
+        "is included as a separate test rather than assuming soft probability "
+        "weighting is automatically best."
     )
 
 
