@@ -133,6 +133,28 @@ The candidate audit now filters depth-chart rows against the actual regular-seas
 
 A deeper validation checked those 327 zero-activity QB1 rows: only **3.4%** still showed offensive snaps, while **98.8%** had another QB active for the same team/week. That supports using these rows as real availability/replacement examples for the v2 pregame candidate dataset rather than treating them as simple join failures.
 
+### QB Model v2
+
+QB v2 uses a two-stage architecture:
+
+1. A Random Forest classifier estimates the probability that each listed QB receives a meaningful role (at least 50% of offensive snaps).
+2. A Random Forest regressor predicts fantasy points conditional on a meaningful role.
+3. The production gate selects the **highest role-probability QB on each team/week** and assigns that QB the conditional fantasy projection; other listed QBs receive zero.
+
+The role classifier averaged **0.937 ROC AUC**, **0.870 accuracy**, **0.818 precision**, and **0.869 recall** in walk-forward validation across 2023-2025.
+
+| Candidate scoring strategy | All-candidate MAE | Listed-QB1 MAE | Actual-role MAE | Played-QB MAE |
+| --- | ---: | ---: | ---: | ---: |
+| **Top role per team** | **5.321** | 9.915 | 9.690 | **8.512** |
+| Listed QB1 only | 5.425 | 10.009 | 9.883 | 8.666 |
+| 50% hard role gate | 5.927 | 9.995 | 9.778 | 8.755 |
+| Direct candidate regression | 6.567 | **9.631** | 9.712 | 8.680 |
+| Soft probability-weighted two-stage | 7.224 | 9.706 | **9.425** | 8.618 |
+
+The production top-role-per-team gate is used because it performed best on the full pregame candidate pool and on QBs who actually played, while also enforcing the normal one-primary-QB-per-team structure. The table also preserves the tradeoffs: direct regression was best on the listed-QB1 subset, and soft probability weighting was best on the actual meaningful-role subset.
+
+The v1 **8.470 MAE** and v2 **5.321 all-candidate MAE** are not directly comparable because v1 evaluates only QBs who recorded game activity, while v2 includes the entire pregame depth-chart candidate pool, including inactive and zero-point rows.
+
 ## Long-Term Roadmap
 
 Later phases will add RB/WR/TE models, travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, uncertainty ranges, player correlation, and matchup-level win-probability recommendations.
