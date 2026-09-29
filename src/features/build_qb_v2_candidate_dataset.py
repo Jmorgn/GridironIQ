@@ -76,10 +76,15 @@ def build_schedule_team_weeks() -> pd.DataFrame:
         temp = pd.to_numeric(game.get("temp"), errors="coerce")
         wind = pd.to_numeric(game.get("wind"), errors="coerce")
 
+        home_score = pd.to_numeric(game.get("home_score"), errors="coerce")
+        away_score = pd.to_numeric(game.get("away_score"), errors="coerce")
+        game_completed = int(pd.notna(home_score) and pd.notna(away_score))
+
         common = {
             "season": int(season),
             "week": int(week),
             "game_id": game.get("game_id"),
+            "game_completed": game_completed,
             "roof": game.get("roof"),
             "surface": game.get("surface"),
             "game_temp": temp,
@@ -238,8 +243,19 @@ def add_actual_targets(candidates: pd.DataFrame) -> pd.DataFrame:
         how="left",
         on=["player_id", "season", "week", "team"],
     )
-    out["actual_fantasy_points"] = out["actual_fantasy_points"].fillna(0.0)
-    out["had_stat_row"] = out["had_stat_row"].fillna(0).astype(int)
+    completed = out["game_completed"].eq(1)
+
+    # A completed game with no player stat row is a legitimate zero-point
+    # candidate. Future/unplayed games must remain unlabeled rather than being
+    # silently converted to zeroes.
+    out.loc[completed, "actual_fantasy_points"] = (
+        out.loc[completed, "actual_fantasy_points"].fillna(0.0)
+    )
+    out.loc[completed, "had_stat_row"] = (
+        out.loc[completed, "had_stat_row"].fillna(0)
+    )
+    out.loc[~completed, "actual_fantasy_points"] = np.nan
+    out.loc[~completed, "had_stat_row"] = np.nan
     return out
 
 
@@ -285,13 +301,35 @@ def add_snap_targets(candidates: pd.DataFrame) -> pd.DataFrame:
         how="left",
         on=["player_id", "season", "week", "team"],
     )
-    out["offense_snaps"] = out["offense_snaps"].fillna(0.0)
-    out["offense_pct"] = out["offense_pct"].fillna(0.0)
+    completed = out["game_completed"].eq(1)
 
-    out["played_any_snap"] = (
-        out["offense_snaps"].gt(0) | out["had_stat_row"].eq(1)
+    out.loc[completed, "offense_snaps"] = (
+        out.loc[completed, "offense_snaps"].fillna(0.0)
+    )
+    out.loc[completed, "offense_pct"] = (
+        out.loc[completed, "offense_pct"].fillna(0.0)
+    )
+
+    # nflverse snap share is normally stored as a fraction (0.94 = 94%).
+    # Normalize defensively in case a source ever supplies 94 instead.
+    normalized_pct = out["offense_pct"].where(
+        out["offense_pct"].le(1.0),
+        out["offense_pct"] / 100.0,
+    )
+
+    out["played_any_snap"] = np.nan
+    out["start_like_role"] = np.nan
+
+    out.loc[completed, "played_any_snap"] = (
+        out.loc[completed, "offense_snaps"].gt(0)
+        | out.loc[completed, "had_stat_row"].eq(1)
     ).astype(int)
-    out["start_like_role"] = out["offense_pct"].ge(50).astype(int)
+
+    out.loc[completed, "start_like_role"] = (
+        normalized_pct.loc[completed].ge(0.50).astype(int)
+    )
+
+    out.loc[~completed, ["offense_snaps", "offense_pct"]] = np.nan
     return out
 
 
@@ -362,6 +400,7 @@ def main() -> None:
         "team",
         "opponent",
         "home_away",
+        "game_completed",
         "depth_chart_qb_rank",
         "listed_qb1",
         "team_rest",
@@ -423,7 +462,10 @@ def main() -> None:
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     model.to_csv(OUTPUT_FILE, index=False)
 
-    historical = model[model["season"].between(2021, 2025)]
+    historical = model[
+        model["season"].between(2021, 2025)
+        & model["game_completed"].eq(1)
+    ].copy()
 
     print(f"\nHistorical candidate rows: {len(historical):,}")
     print(
@@ -448,6 +490,14 @@ def main() -> None:
     print(
         "QB1 start-like role: "
         f"{qb1['start_like_role'].mean() * 100:.1f}%"
+    )
+
+    live_unplayed = model[
+        model["season"].eq(2026) & model["game_completed"].eq(0)
+    ]
+    print(
+        f"\n2026 future/unplayed candidate rows kept unlabeled: "
+        f"{len(live_unplayed):,}"
     )
 
     print(f"\nColumns: {len(model.columns)}")
