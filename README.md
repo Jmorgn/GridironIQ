@@ -188,6 +188,25 @@ The command-line report prints the top 10 QBs with a short explanation of why Gr
 
 Use `py run_weekly.py --retrain` only when intentionally refitting the official QB v2 models. Normal weekly refreshes do not need to retrain the 2021-2025 model.
 
+## QB Start / Sit Comparison
+
+After the weekly rankings have been generated, compare any two current-week quarterbacks with:
+
+```cmd
+py compare_qbs.py "Dak Prescott" "Bryce Young"
+```
+
+The comparison shows each QB's current GridironIQ rank, official projection, role confidence, matchup positives/negatives, and side-by-side context for recent fantasy form, opponent passing yards allowed, opponent sack pressure, game total, and role confidence.
+
+It finishes with a projection-based GridironIQ lean:
+
+```text
+Clear lean: START Dak Prescott over Bryce Young.
+Projection gap: 4.65 FP.
+```
+
+The comparison tool accepts full names, unique partial names, and close name matches. If a player is present in the future candidate pool but was not selected as that team's projected primary QB, the tool will show that status rather than silently treating the player as a ranked starter.
+
 ## Long-Term Roadmap
 
 Later phases will add RB/WR/TE models, travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, uncertainty ranges, player correlation, and matchup-level win-probability recommendations.
