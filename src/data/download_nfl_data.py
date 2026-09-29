@@ -25,21 +25,31 @@ DEFAULT_END_SEASON = 2026
 RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
 
 
-def download_file(url: str, destination: Path) -> None:
-    """Download one file unless it already exists."""
-    if destination.exists():
+def download_file(
+    url: str,
+    destination: Path,
+    *,
+    force: bool = False,
+) -> None:
+    """Download one file, optionally replacing an existing local copy."""
+    if destination.exists() and not force:
         print(f"SKIP  {destination.name} already exists")
         return
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    print(f"GET   {destination.name}")
+    action = "REFRESH" if destination.exists() else "GET"
+    print(f"{action:<7}{destination.name}")
+
+    temp_path = destination.with_suffix(destination.suffix + ".tmp")
 
     with requests.get(url, stream=True, timeout=120) as response:
         response.raise_for_status()
-        with destination.open("wb") as file_handle:
+        with temp_path.open("wb") as file_handle:
             for chunk in response.iter_content(chunk_size=1024 * 1024):
                 if chunk:
                     file_handle.write(chunk)
+
+    temp_path.replace(destination)
 
 
 def player_stats_url(season: int) -> str:
@@ -91,28 +101,42 @@ def download_datasets(start_season: int, end_season: int) -> None:
         raise ValueError("start_season cannot be greater than end_season")
 
     for season in range(start_season, end_season + 1):
+        # Current-season nflverse files change every week. Historical files
+        # are effectively immutable, so keep the fast skip behavior for them.
+        refresh = season == DEFAULT_END_SEASON
+
         download_file(
             player_stats_url(season),
             RAW_DIR / f"stats_player_week_{season}.csv",
+            force=refresh,
         )
         download_file(
             team_stats_url(season),
             RAW_DIR / f"stats_team_week_{season}.csv",
+            force=refresh,
         )
         download_file(
             snap_counts_url(season),
             RAW_DIR / f"snap_counts_{season}.csv",
+            force=refresh,
         )
         download_file(
             depth_charts_url(season),
             RAW_DIR / f"depth_charts_{season}.csv",
+            force=refresh,
         )
         download_file(
             injuries_url(season),
             RAW_DIR / f"injuries_{season}.csv",
+            force=refresh,
         )
 
-    download_file(schedules_url(), RAW_DIR / "games.csv")
+    # Schedule scores/statuses also change during the live season.
+    download_file(
+        schedules_url(),
+        RAW_DIR / "games.csv",
+        force=True,
+    )
     download_file(players_url(), RAW_DIR / "players.csv")
     print(f"\nDone. Raw data is in: {RAW_DIR}")
 
