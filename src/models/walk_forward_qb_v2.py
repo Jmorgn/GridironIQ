@@ -195,6 +195,34 @@ def evaluate_fold(
         0.0,
     )
 
+    # A meaningful-role outcome is mostly a within-team competition: normally
+    # only one QB should receive starter-level snaps. Compare two simple
+    # structure-aware gates:
+    # 1) trust the listed QB1;
+    # 2) trust whichever QB has the highest role probability for that team/week.
+    listed_qb1_points = np.where(
+        test["listed_qb1"].eq(1).to_numpy(),
+        conditional_points,
+        0.0,
+    )
+
+    role_frame = test[
+        ["season", "week", "team"]
+    ].copy()
+    role_frame["_role_probability"] = role_probability
+    role_frame["_row_index"] = np.arange(len(role_frame))
+    winner_indices = (
+        role_frame.sort_values(
+            ["season", "week", "team", "_role_probability"],
+            ascending=[True, True, True, False],
+        )
+        .drop_duplicates(["season", "week", "team"])
+        ["_row_index"]
+        .to_numpy()
+    )
+    top_role_points = np.zeros(len(test), dtype=float)
+    top_role_points[winner_indices] = conditional_points[winner_indices]
+
     direct_model = make_regressor(features)
     direct_model.fit(X_train, train[TARGET])
     direct_points = np.maximum(direct_model.predict(X_test), 0.0)
@@ -204,6 +232,8 @@ def evaluate_fold(
     for name, pred in [
         ("Two-stage expected points", expected_points),
         ("Two-stage hard gate", hard_gate_points),
+        ("Listed-QB1 gate", listed_qb1_points),
+        ("Top-role-per-team gate", top_role_points),
         ("Direct candidate regressor", direct_points),
     ]:
         mae, rmse = regression_metrics(test[TARGET], pred)
@@ -270,7 +300,7 @@ def evaluate_fold(
         f"Recall={classifier_row['role_recall']:.3f}"
     )
 
-    for row in rows[:3]:
+    for row in rows[:5]:
         print(
             f"{row['model']:<28} "
             f"ALL={row['mae_all_candidates']:.3f}  "
@@ -337,6 +367,26 @@ def fit_and_predict_future(
         out["conditional_fantasy_points"],
         0.0,
     )
+
+    out["listed_qb1_fantasy_points"] = np.where(
+        out["listed_qb1"].eq(1),
+        out["conditional_fantasy_points"],
+        0.0,
+    )
+
+    out["top_role_per_team_fantasy_points"] = 0.0
+    winner_index = (
+        out.sort_values(
+            ["season", "week", "team", "meaningful_role_probability"],
+            ascending=[True, True, True, False],
+        )
+        .drop_duplicates(["season", "week", "team"])
+        .index
+    )
+    out.loc[winner_index, "top_role_per_team_fantasy_points"] = (
+        out.loc[winner_index, "conditional_fantasy_points"]
+    )
+
     out["direct_fantasy_points"] = np.maximum(
         direct_model.predict(X),
         0.0,
@@ -470,6 +520,8 @@ def main() -> None:
                     "conditional_fantasy_points": "{:.2f}".format,
                     "expected_fantasy_points": "{:.2f}".format,
                     "hard_gate_fantasy_points": "{:.2f}".format,
+                    "listed_qb1_fantasy_points": "{:.2f}".format,
+                    "top_role_per_team_fantasy_points": "{:.2f}".format,
                     "direct_fantasy_points": "{:.2f}".format,
                 },
             )
@@ -484,9 +536,10 @@ def main() -> None:
     )
     print(
         "The soft two-stage prediction is an expected-value estimate. Because "
-        "GridironIQ primarily scores models with MAE, the fixed 50% hard gate "
-        "is included as a separate test rather than assuming soft probability "
-        "weighting is automatically best."
+        "GridironIQ primarily scores models with MAE, gating rules are tested "
+        "explicitly instead of assuming probability weighting is automatically "
+        "best. The team-relative gate also enforces the football reality that "
+        "only one QB per team normally receives starter-level snaps."
     )
 
 
