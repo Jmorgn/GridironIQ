@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import argparse
+import time
 
 import requests
 
@@ -30,26 +31,67 @@ def download_file(
     destination: Path,
     *,
     force: bool = False,
+    max_attempts: int = 4,
 ) -> None:
-    """Download one file, optionally replacing an existing local copy."""
+    """Download one file, retrying transient network/TLS failures safely."""
     if destination.exists() and not force:
-        print(f"SKIP  {destination.name} already exists")
+        print(f"SKIP   {destination.name} already exists")
         return
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     action = "REFRESH" if destination.exists() else "GET"
-    print(f"{action:<7}{destination.name}")
-
     temp_path = destination.with_suffix(destination.suffix + ".tmp")
 
-    with requests.get(url, stream=True, timeout=120) as response:
-        response.raise_for_status()
-        with temp_path.open("wb") as file_handle:
-            for chunk in response.iter_content(chunk_size=1024 * 1024):
-                if chunk:
-                    file_handle.write(chunk)
+    for attempt in range(1, max_attempts + 1):
+        print(
+            f"{action:<8}{destination.name}"
+            + (f" (attempt {attempt}/{max_attempts})" if attempt > 1 else "")
+        )
 
-    temp_path.replace(destination)
+        try:
+            if temp_path.exists():
+                temp_path.unlink()
+
+            # A separate request per attempt avoids reusing a broken TLS
+            # connection after mid-stream SSL/read failures.
+            with requests.get(
+                url,
+                stream=True,
+                timeout=(20, 120),
+                headers={"Connection": "close"},
+            ) as response:
+                response.raise_for_status()
+
+                with temp_path.open("wb") as file_handle:
+                    for chunk in response.iter_content(
+                        chunk_size=256 * 1024
+                    ):
+                        if chunk:
+                            file_handle.write(chunk)
+
+            # Replace the old live-season file only after a complete,
+            # successful download. A failed refresh therefore never destroys
+            # the last known-good local copy.
+            temp_path.replace(destination)
+            return
+
+        except requests.RequestException as exc:
+            if temp_path.exists():
+                temp_path.unlink()
+
+            if attempt == max_attempts:
+                raise RuntimeError(
+                    f"Failed to download {destination.name} after "
+                    f"{max_attempts} attempts. Existing local file, if any, "
+                    "was left untouched."
+                ) from exc
+
+            wait_seconds = 2 ** (attempt - 1)
+            print(
+                f"RETRY   transient download error: "
+                f"{type(exc).__name__}. Waiting {wait_seconds}s..."
+            )
+            time.sleep(wait_seconds)
 
 
 def player_stats_url(season: int) -> str:
