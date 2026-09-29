@@ -182,6 +182,10 @@ All future QB candidates and their role probabilities are also saved to:
 data/processed/qb_v2_all_future_candidates.csv
 ```
 
+The weekly rankings file also includes `key_positives` and `key_negatives` columns. These are descriptive context signals built from recent fantasy form, betting environment, opponent pass-defense trends, pass rush, rest, home/away status, weather, injury status, and role confidence. They are intentionally labeled as context signals rather than exact Random Forest feature-attribution values.
+
+The command-line report prints the top 10 QBs with a short explanation of why GridironIQ likes or dislikes the matchup.
+
 Use `py run_weekly.py --retrain` only when intentionally refitting the official QB v2 models. Normal weekly refreshes do not need to retrain the 2021-2025 model.
 
 ## Long-Term Roadmap
