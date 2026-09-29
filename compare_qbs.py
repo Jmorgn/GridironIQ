@@ -206,6 +206,54 @@ def print_player_summary(
     )
 
 
+def print_model_attribution(row: pd.Series) -> None:
+    """Print exact SHAP attribution for the conditional points model."""
+    from src.models.explain_qb_v2 import explain_conditional_prediction
+
+    try:
+        result = explain_conditional_prediction(
+            player_id=str(row["player_id"]),
+            season=int(safe_float(row.get("season")) or 0),
+            week=int(safe_float(row.get("week")) or 0),
+            team=str(row["team"]),
+            top_n=4,
+        )
+    except RuntimeError as exc:
+        print(f"  SHAP unavailable: {exc}")
+        return
+
+    print(
+        f"  Conditional-model baseline: "
+        f"{result['baseline']:.2f} FP"
+    )
+    print(
+        f"  Conditional-model output:   "
+        f"{result['pipeline_prediction']:.2f} FP"
+    )
+
+    print("  Model factors pushing UP:")
+    for item in result["positive"]:
+        print(
+            f"    + {item['label']:<34} "
+            f"{item['contribution']:+.2f} FP "
+            f"(value={item['value']})"
+        )
+
+    if not result["positive"]:
+        print("    + No positive SHAP contributions")
+
+    print("  Model factors pushing DOWN:")
+    for item in result["negative"]:
+        print(
+            f"    - {item['label']:<34} "
+            f"{item['contribution']:+.2f} FP "
+            f"(value={item['value']})"
+        )
+
+    if not result["negative"]:
+        print("    - No negative SHAP contributions")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Compare two QBs using current GridironIQ projections."
@@ -333,6 +381,21 @@ def main() -> None:
         )
 
     print("\n" + "=" * 76)
+    print("MODEL ATTRIBUTION (SHAP)")
+    print("=" * 76)
+    print(
+        "These values explain the Random Forest's conditional fantasy-points "
+        "prediction in fantasy-point units. They do not explain the separate "
+        "role classifier or team-selection gate."
+    )
+
+    print(f"\n{a['player_name']}")
+    print_model_attribution(a)
+
+    print(f"\n{b['player_name']}")
+    print_model_attribution(b)
+
+    print("\n" + "=" * 76)
     print("GRIDIRONIQ LEAN")
     print("=" * 76)
 
@@ -363,8 +426,9 @@ def main() -> None:
         )
 
     print(
-        "\nContext notes are descriptive signals, not exact Random Forest "
-        "feature-attribution values."
+        "\nContext notes are descriptive signals. The SHAP section is the "
+        "exact additive attribution for the conditional Random Forest output; "
+        "the role classifier and team-selection gate are separate."
     )
 
 
