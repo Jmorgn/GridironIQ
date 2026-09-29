@@ -226,6 +226,136 @@ def add_prior_player_history(candidates: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def build_defense_history_snapshots() -> pd.DataFrame:
+    """Build postgame defense snapshots for leakage-safe future-week joins."""
+    team = pd.read_csv(TEAM_FILE, low_memory=False)
+    team["team"] = normalize_team(team["team"].astype(str))
+    team["opponent_team"] = normalize_team(
+        team["opponent_team"].astype(str)
+    )
+
+    # First build one observed defensive performance per team/game.
+    defense = build_defense_features(team)
+
+    # build_defense_features intentionally shifts its rolling metrics so they
+    # are safe on same-week historical rows. For v2, future candidate rows do
+    # not yet exist in team_weekly, so reconstruct observed game metrics and
+    # create snapshots that include each completed game. The candidate then
+    # receives the latest snapshot strictly BEFORE its game week.
+    from build_qb_model_dataset import find_sacks_allowed_column, col
+
+    sacks_col = find_sacks_allowed_column(team)
+
+    observed = pd.DataFrame(
+        {
+            "season": team["season"],
+            "week": team["week"],
+            "defense_team": team["opponent_team"],
+            "pass_yards_allowed": col(team, "passing_yards"),
+            "pass_tds_allowed": col(team, "passing_tds"),
+            "def_interceptions": col(team, "passing_interceptions"),
+            "def_sacks": col(team, sacks_col) if sacks_col else 0.0,
+        }
+    )
+
+    observed = (
+        observed.groupby(
+            ["season", "week", "defense_team"],
+            as_index=False,
+        )
+        .agg(
+            pass_yards_allowed=("pass_yards_allowed", "sum"),
+            pass_tds_allowed=("pass_tds_allowed", "sum"),
+            def_interceptions=("def_interceptions", "sum"),
+            def_sacks=("def_sacks", "sum"),
+        )
+    )
+
+    observed["_week_key"] = week_key(observed).astype("int64")
+    observed = observed.sort_values(
+        ["defense_team", "_week_key"]
+    ).copy()
+
+    metrics = [
+        "pass_yards_allowed",
+        "pass_tds_allowed",
+        "def_interceptions",
+        "def_sacks",
+    ]
+
+    for metric in metrics:
+        observed[metric] = pd.to_numeric(
+            observed[metric], errors="coerce"
+        ).fillna(0.0)
+
+        for window in (3, 5):
+            observed[f"snapshot_opp_avg_{metric}_last_{window}"] = (
+                observed.groupby("defense_team", sort=False)[metric]
+                .transform(
+                    lambda s: s.rolling(
+                        window, min_periods=1
+                    ).mean()
+                )
+            )
+
+    keep = [
+        "defense_team",
+        "_week_key",
+        *[
+            c
+            for c in observed.columns
+            if c.startswith("snapshot_opp_avg_")
+        ],
+    ]
+    return observed[keep].copy()
+
+
+def add_prior_defense_history(candidates: pd.DataFrame) -> pd.DataFrame:
+    """Attach opponent defense form from the latest completed prior game."""
+    history = build_defense_history_snapshots().copy()
+    out = candidates.copy()
+
+    out["_week_key"] = week_key(out).astype("int64")
+    out["opponent"] = out["opponent"].astype(str)
+    history["defense_team"] = history["defense_team"].astype(str)
+
+    out["_candidate_order_def"] = np.arange(len(out))
+
+    left = out.sort_values(["_week_key", "opponent"]).copy()
+    right = history.sort_values(
+        ["_week_key", "defense_team"]
+    ).copy()
+
+    merged = pd.merge_asof(
+        left,
+        right,
+        left_on="_week_key",
+        right_on="_week_key",
+        left_by="opponent",
+        right_by="defense_team",
+        direction="backward",
+        allow_exact_matches=False,
+    )
+
+    rename = {
+        column: column.replace("snapshot_", "", 1)
+        for column in merged.columns
+        if column.startswith("snapshot_opp_avg_")
+    }
+
+    merged = merged.rename(columns=rename)
+    return (
+        merged.sort_values("_candidate_order_def")
+        .drop(
+            columns=[
+                "_candidate_order_def",
+                "defense_team",
+            ],
+            errors="ignore",
+        )
+    )
+
+
 def add_actual_targets(candidates: pd.DataFrame) -> pd.DataFrame:
     players = pd.read_csv(PLAYER_FILE, low_memory=False)
     qbs = players[players["position"].astype(str).eq("QB")].copy()
@@ -372,21 +502,7 @@ def main() -> None:
     candidates = add_prior_player_history(candidates)
     candidates = add_injury_features(candidates)
 
-    team = pd.read_csv(TEAM_FILE, low_memory=False)
-    team["team"] = normalize_team(team["team"].astype(str))
-    team["opponent_team"] = normalize_team(team["opponent_team"].astype(str))
-
-    defense = build_defense_features(team)
-    defense["defense_team"] = normalize_team(
-        defense["defense_team"].astype(str)
-    )
-
-    candidates = candidates.merge(
-        defense,
-        how="left",
-        left_on=["season", "week", "opponent"],
-        right_on=["season", "week", "defense_team"],
-    )
+    candidates = add_prior_defense_history(candidates)
 
     candidates = add_actual_targets(candidates)
     candidates = add_snap_targets(candidates)
@@ -499,6 +615,16 @@ def main() -> None:
         f"\n2026 future/unplayed candidate rows kept unlabeled: "
         f"{len(live_unplayed):,}"
     )
+
+    defense_feature = "opp_avg_pass_yards_allowed_last_3"
+    if len(live_unplayed) and defense_feature in live_unplayed.columns:
+        future_defense_coverage = (
+            live_unplayed[defense_feature].notna().mean() * 100
+        )
+        print(
+            "Future opponent-defense feature coverage: "
+            f"{future_defense_coverage:.1f}%"
+        )
 
     print(f"\nColumns: {len(model.columns)}")
     print(f"WRITE {OUTPUT_FILE}")
