@@ -198,6 +198,8 @@ py compare_qbs.py "Dak Prescott" "Bryce Young"
 
 The comparison shows each QB's current GridironIQ rank, official projection, role confidence, matchup positives/negatives, and side-by-side context for recent fantasy form, opponent passing yards allowed, opponent sack pressure, game total, and role confidence.
 
+It also includes a SHAP attribution section for the conditional Random Forest. Those values are additive fantasy-point contributions relative to the model's baseline and show which features actually pushed that QB's conditional projection up or down. SHAP explains the fantasy-points regressor only; the role classifier and team-selection gate remain separate model stages.
+
 It finishes with a projection-based GridironIQ lean:
 
 ```text
