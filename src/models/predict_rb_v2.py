@@ -13,6 +13,8 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from uncertainty import apply_residual_intervals
+
 ROOT = Path(__file__).resolve().parents[2]
 DATA_FILE = ROOT / "data" / "processed" / "rb_v2_candidate_dataset.csv"
 BUNDLE_FILE = ROOT / "models" / "rb_v2_bundle.joblib"
@@ -131,6 +133,14 @@ def main() -> None:
     features = bundle["features"]
     role_model = bundle["role_classifier"]
     points_model = bundle["conditional_regressor"]
+    uncertainty = bundle.get("uncertainty")
+
+    if uncertainty is None:
+        raise RuntimeError(
+            "RB model bundle has no uncertainty calibration. "
+            "Run 'py run_weekly.py --retrain' once after pulling the "
+            "uncertainty update."
+        )
 
     missing = [c for c in features if c not in df.columns]
     if missing:
@@ -152,6 +162,11 @@ def main() -> None:
         0.0,
     )
     projection = probability * conditional_points
+    low, high = apply_residual_intervals(
+        projection,
+        probability,
+        uncertainty,
+    )
 
     keep = [
         "player_id",
@@ -182,6 +197,8 @@ def main() -> None:
     output["rb_role_probability"] = probability
     output["conditional_fantasy_points"] = conditional_points
     output["gridironiq_projection"] = projection
+    output["prediction_low_80"] = low
+    output["prediction_high_80"] = high
 
     contexts = [
         build_context(future.iloc[index])
@@ -251,6 +268,8 @@ def main() -> None:
             "rb_role_probability",
             "conditional_fantasy_points",
             "gridironiq_projection",
+            "prediction_low_80",
+            "prediction_high_80",
         ]
     ].head(40)
 
@@ -261,6 +280,8 @@ def main() -> None:
                 "rb_role_probability": "{:.1%}".format,
                 "conditional_fantasy_points": "{:.2f}".format,
                 "gridironiq_projection": "{:.2f}".format,
+                "prediction_low_80": "{:.2f}".format,
+                "prediction_high_80": "{:.2f}".format,
             },
         )
     )
@@ -273,6 +294,11 @@ def main() -> None:
             f"({row['team']} vs {row['opponent']}) — "
             f"{row['gridironiq_projection']:.2f} FP | "
             f"role {row['rb_role_probability']:.1%}"
+        )
+        print(
+            f"  80% historical range: "
+            f"{row['prediction_low_80']:.2f} to "
+            f"{row['prediction_high_80']:.2f} FP"
         )
         print(f"  + {row['key_positives']}")
         print(f"  - {row['key_negatives']}")
