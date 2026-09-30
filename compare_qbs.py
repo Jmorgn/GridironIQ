@@ -126,6 +126,13 @@ def role_probability(row: pd.Series) -> float | None:
     return safe_float(row.get("meaningful_role_probability"))
 
 
+def prediction_interval(row: pd.Series) -> tuple[float | None, float | None]:
+    return (
+        safe_float(row.get("prediction_low_80")),
+        safe_float(row.get("prediction_high_80")),
+    )
+
+
 def comparison_value(
     row: pd.Series,
     column: str,
@@ -191,6 +198,9 @@ def print_player_summary(
     print(f"{row['player_name']} ({row['team']} vs {row['opponent']})")
     print(f"  Rank:       {rank}")
     print(f"  Projection: {proj:.2f} FP")
+    low, high = prediction_interval(row)
+    if low is not None and high is not None:
+        print(f"  80% range:  {low:.2f} to {high:.2f} FP")
     print(
         "  Role:       "
         + (f"{role:.1%}" if role is not None else "N/A")
@@ -418,6 +428,26 @@ def main() -> None:
         f"({projection(preferred):.2f} vs {projection(other):.2f})."
     )
 
+    preferred_low, preferred_high = prediction_interval(preferred)
+    other_low, other_high = prediction_interval(other)
+    if (
+        preferred_low is not None
+        and preferred_high is not None
+        and other_low is not None
+        and other_high is not None
+    ):
+        overlap = max(
+            0.0,
+            min(preferred_high, other_high)
+            - max(preferred_low, other_low),
+        )
+        if overlap > 0:
+            print(
+                "Uncertainty note: the historical 80% prediction ranges "
+                f"overlap by {overlap:.2f} FP, so the point-estimate edge "
+                "is not a guarantee."
+            )
+
     preferred_role = role_probability(preferred)
     if preferred_role is not None and preferred_role < 0.75:
         print(
@@ -428,7 +458,9 @@ def main() -> None:
     print(
         "\nContext notes are descriptive signals. The SHAP section is the "
         "exact additive attribution for the conditional Random Forest output; "
-        "the role classifier and team-selection gate are separate."
+        "the role classifier and team-selection gate are separate. The 80% "
+        "range is calibrated from historical 2023-2025 walk-forward residuals "
+        "and is not a guaranteed bound."
     )
 
 
