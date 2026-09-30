@@ -277,6 +277,16 @@ Then generate current-week RB rankings with:
 py src\models\predict_rb_v2.py
 ```
 
+Compare two current-week running backs with:
+
+```cmd
+py compare_rbs.py "Bucky Irving" "Rachaad White"
+```
+
+The RB comparison shows official rank, soft expected projection, probability of reaching the 35% snap-share role threshold, conditional fantasy points, depth-chart position, recent workload/snap share, rushing matchup, RB-room competition, game environment, and descriptive positives/negatives.
+
+It also uses SHAP to explain the conditional Gradient Boosting fantasy-points model. Those additive SHAP values explain the conditional points prediction only; the separate workload classifier then scales that prediction by the player's probability of reaching 35% offensive snaps.
+
 ## Long-Term Roadmap
 
 Later phases will add RB/WR/TE models, travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, uncertainty ranges, player correlation, and matchup-level win-probability recommendations.
