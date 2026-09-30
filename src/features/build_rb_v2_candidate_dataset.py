@@ -90,8 +90,21 @@ def add_actual_results(candidates: pd.DataFrame) -> pd.DataFrame:
     )
 
     # Team opportunity denominators come from all offensive players.
-    players["team_carries_component"] = col(players, "carries")
-    players["team_targets_component"] = col(players, "targets")
+    # Build both helper columns at once to avoid pandas DataFrame
+    # fragmentation warnings on the wide nflverse table.
+    players = pd.concat(
+        [
+            players,
+            pd.DataFrame(
+                {
+                    "team_carries_component": col(players, "carries"),
+                    "team_targets_component": col(players, "targets"),
+                },
+                index=players.index,
+            ),
+        ],
+        axis=1,
+    )
     team_totals = (
         players.groupby(
             ["season", "week", "team"],
