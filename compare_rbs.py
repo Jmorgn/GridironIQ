@@ -142,6 +142,13 @@ def role_probability(row: pd.Series) -> float | None:
     return safe_float(row.get("rb_role_probability"))
 
 
+def prediction_interval(row: pd.Series) -> tuple[float | None, float | None]:
+    return (
+        safe_float(row.get("prediction_low_80")),
+        safe_float(row.get("prediction_high_80")),
+    )
+
+
 def value(row: pd.Series, column: str) -> float | None:
     return safe_float(row.get(column))
 
@@ -209,6 +216,9 @@ def print_player_summary(
     )
     print(f"  Rank:              {rank}")
     print(f"  Projection:        {proj:.2f} FP")
+    low, high = prediction_interval(row)
+    if low is not None and high is not None:
+        print(f"  80% range:         {low:.2f} to {high:.2f} FP")
     print(
         "  Role probability: "
         + (f"{role:.1%}" if role is not None else "N/A")
@@ -517,6 +527,26 @@ def main() -> None:
         f"{projection(other):.2f})."
     )
 
+    preferred_low, preferred_high = prediction_interval(preferred)
+    other_low, other_high = prediction_interval(other)
+    if (
+        preferred_low is not None
+        and preferred_high is not None
+        and other_low is not None
+        and other_high is not None
+    ):
+        overlap = max(
+            0.0,
+            min(preferred_high, other_high)
+            - max(preferred_low, other_low),
+        )
+        if overlap > 0:
+            print(
+                "Uncertainty note: the historical 80% prediction ranges "
+                f"overlap by {overlap:.2f} FP, so the point-estimate edge "
+                "is not a guarantee."
+            )
+
     preferred_role = role_probability(preferred)
     other_role = role_probability(other)
 
@@ -543,7 +573,8 @@ def main() -> None:
     print(
         "\nThe context table is descriptive. SHAP attribution applies "
         "only to conditional fantasy points; workload probability is a "
-        "separate model stage."
+        "separate model stage. The 80% range is calibrated from historical "
+        "2023-2025 walk-forward residuals and is not a guaranteed bound."
     )
 
 
