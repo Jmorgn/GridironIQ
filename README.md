@@ -209,6 +209,42 @@ Projection gap: 4.65 FP.
 
 The comparison tool accepts full names, unique partial names, and close name matches. If a player is present in the future candidate pool but was not selected as that team's projected primary QB, the tool will show that status rather than silently treating the player as a ranked starter.
 
+## RB Model v1
+
+The first running-back benchmark uses RBs who recorded fantasy-relevant game activity and evaluates only pregame information.
+
+The RB feature table includes prior fantasy production, carries, targets, receptions, touches, opportunities, carry/target/opportunity share, offensive snap count/share, depth-chart rank, injury/practice status, game context, and opponent defensive form.
+
+Walk-forward validation:
+
+| Fold | Train | Test | Best MAE |
+| --- | --- | --- | ---: |
+| 1 | 2021-2022 | 2023 | 4.984 (Gradient Boosting) |
+| 2 | 2021-2023 | 2024 | 5.014 (Random Forest) |
+| 3 | 2021-2024 | 2025 | 5.105 (Linear Regression) |
+
+Average 2023-2025 results:
+
+| Model | MAE | RMSE | R² |
+| --- | ---: | ---: | ---: |
+| **Gradient Boosting** | **5.043** | **6.963** | **0.337** |
+| Random Forest | 5.073 | 6.992 | 0.331 |
+| Linear Regression | 5.081 | 7.001 | 0.329 |
+| Last-3 baseline | 5.391 | 7.564 | 0.217 |
+| Mean baseline | 6.554 | 8.551 | -0.001 |
+
+Gradient Boosting is the current RB v1 benchmark because it produced the lowest average walk-forward MAE. It improved on the Last-3 baseline by **6.5%**.
+
+RB v1 is intentionally an active-game benchmark. It does not yet solve the harder pregame workload problem for inactive backs, committees, injury replacements, or multiple fantasy-relevant RBs on the same team.
+
+The next step is an RB candidate audit using historical depth charts, snap share, opportunities, and fantasy output. The audit is designed to choose an evidence-based workload/role target before building RB v2.
+
+Run:
+
+```cmd
+py src\features\audit_rb_candidates.py
+```
+
 ## Long-Term Roadmap
 
 Later phases will add RB/WR/TE models, travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, uncertainty ranges, player correlation, and matchup-level win-probability recommendations.
