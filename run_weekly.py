@@ -1,13 +1,15 @@
-"""Run the complete weekly GridironIQ QB v2 workflow.
+"""Run the complete weekly GridironIQ QB + RB workflow.
 
 Default weekly workflow:
 1. Refresh live nflverse data.
 2. Rebuild processed historical tables.
-3. Rebuild the pregame QB v2 candidate dataset.
-4. Load the saved QB v2 model bundle and generate current-week rankings.
+3. Rebuild QB v2 pregame candidate dataset.
+4. Rebuild RB v2 pregame candidate dataset.
+5. Generate current-week QB rankings from saved models.
+6. Generate current-week RB rankings from saved models.
 
-Use --retrain when you intentionally want to refit the official v2 models
-before generating rankings.
+Use --retrain when you intentionally want to refit the official QB and RB v2
+models before generating rankings.
 """
 
 from __future__ import annotations
@@ -40,14 +42,14 @@ def run_step(label: str, script: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run the weekly GridironIQ QB v2 pipeline."
+        description="Run the weekly GridironIQ QB + RB v2 pipeline."
     )
     parser.add_argument(
         "--retrain",
         action="store_true",
         help=(
-            "Retrain the official QB v2 models on 2021-2025 before "
-            "producing weekly rankings."
+            "Retrain the official QB and RB v2 models on 2021-2025 "
+            "before producing weekly rankings."
         ),
     )
     parser.add_argument(
@@ -65,24 +67,30 @@ def main() -> None:
     print("=" * 78)
     print(f"Python: {sys.executable}")
     print(f"Project: {ROOT}")
+    print("Positions: QB, RB")
     print(f"Retrain models: {'YES' if args.retrain else 'NO'}")
 
     if not args.skip_download:
         run_step(
-            "STEP 1/4 — Refresh live NFL data",
+            "STEP 1/6 — Refresh live NFL data",
             ROOT / "src" / "data" / "download_nfl_data.py",
         )
     else:
-        print("\nSTEP 1/4 — Refresh live NFL data: SKIPPED")
+        print("\nSTEP 1/6 — Refresh live NFL data: SKIPPED")
 
     run_step(
-        "STEP 2/4 — Rebuild processed historical tables",
+        "STEP 2/6 — Rebuild processed historical tables",
         ROOT / "src" / "data" / "build_historical_tables.py",
     )
 
     run_step(
-        "STEP 3/4 — Build QB v2 pregame candidate dataset",
+        "STEP 3/6 — Build QB v2 pregame candidate dataset",
         ROOT / "src" / "features" / "build_qb_v2_candidate_dataset.py",
+    )
+
+    run_step(
+        "STEP 4/6 — Build RB v2 pregame candidate dataset",
+        ROOT / "src" / "features" / "build_rb_v2_candidate_dataset.py",
     )
 
     if args.retrain:
@@ -90,17 +98,29 @@ def main() -> None:
             "OPTIONAL — Retrain official QB v2 models",
             ROOT / "src" / "models" / "train_qb_v2.py",
         )
+        run_step(
+            "OPTIONAL — Retrain official RB v2 models",
+            ROOT / "src" / "models" / "train_rb_v2.py",
+        )
 
     run_step(
-        "STEP 4/4 — Generate current-week QB rankings",
+        "STEP 5/6 — Generate current-week QB rankings",
         ROOT / "src" / "models" / "predict_qb_v2.py",
+    )
+
+    run_step(
+        "STEP 6/6 — Generate current-week RB rankings",
+        ROOT / "src" / "models" / "predict_rb_v2.py",
     )
 
     print("\n" + "=" * 78)
     print("GRIDIRONIQ WEEKLY PIPELINE COMPLETE")
     print("=" * 78)
     print(
-        "Weekly rankings: data/processed/qb_v2_weekly_rankings.csv"
+        "QB rankings: data/processed/qb_v2_weekly_rankings.csv"
+    )
+    print(
+        "RB rankings: data/processed/rb_v2_weekly_rankings.csv"
     )
 
 
