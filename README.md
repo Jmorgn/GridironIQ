@@ -287,6 +287,42 @@ The RB comparison shows official rank, soft expected projection, probability of 
 
 It also uses SHAP to explain the conditional Gradient Boosting fantasy-points model. Those additive SHAP values explain the conditional points prediction only; the separate workload classifier then scales that prediction by the player's probability of reaching 35% offensive snaps.
 
+## WR Model v1
+
+The first wide-receiver benchmark uses WRs who recorded fantasy-relevant game activity and evaluates only pregame information.
+
+The WR feature table includes recent fantasy production, targets, receptions, receiving yards/TDs, target share, reception share, receiving-yard share, yards per target, catch rate, offensive snap count/share, depth-chart rank, injury/practice status, game context, opponent passing-defense form, and available air-yards/YAC/first-down history.
+
+The active-game dataset contains **11,692 historical WR-games from 2021-2025**. Historical depth-chart coverage is **93.4%** and prior-snap coverage is **96.1%**.
+
+Walk-forward validation:
+
+| Fold | Train | Test | Best MAE |
+| --- | --- | --- | ---: |
+| 1 | 2021-2022 | 2023 | 5.185 (Linear Regression) |
+| 2 | 2021-2023 | 2024 | 5.193 (Gradient Boosting) |
+| 3 | 2021-2024 | 2025 | 4.868 (Gradient Boosting) |
+
+Average 2023-2025 results:
+
+| Model | MAE | RMSE | R² |
+| --- | ---: | ---: | ---: |
+| **Gradient Boosting** | **5.093** | **7.032** | **0.285** |
+| Linear Regression | 5.124 | 7.065 | 0.278 |
+| Random Forest | 5.126 | 7.050 | 0.281 |
+| Last-3 baseline | 5.486 | 7.663 | 0.150 |
+| Mean baseline | 6.370 | 8.325 | -0.002 |
+
+Gradient Boosting is the WR v1 active-game benchmark. It reduced MAE by **7.2%** versus the Last-3 fantasy-points baseline.
+
+WR v1 does not yet solve the full pregame participation problem. WR v2 will start from the depth-chart candidate pool and test snap participation, target volume, target share, and combined role definitions rather than assuming one receiver per team.
+
+Audit the historical WR candidate pool with:
+
+```cmd
+py src\features\audit_wr_candidates.py
+```
+
 ## Prediction Uncertainty
 
 QB v2 and RB v2 now include empirical **80% historical prediction intervals**. These are calibrated from out-of-season 2023-2025 walk-forward residuals using each position's actual production scoring rule.
@@ -312,4 +348,4 @@ py run_weekly.py --retrain
 
 ## Long-Term Roadmap
 
-Later phases will add RB/WR/TE models, travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, uncertainty ranges, player correlation, and matchup-level win-probability recommendations.
+Later phases will finish WR v2 and TE models, then add travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, player correlation, and matchup-level win-probability recommendations.
