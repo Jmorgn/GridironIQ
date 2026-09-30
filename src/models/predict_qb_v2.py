@@ -13,6 +13,8 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from uncertainty import apply_residual_intervals
+
 ROOT = Path(__file__).resolve().parents[2]
 DATA_FILE = ROOT / "data" / "processed" / "qb_v2_candidate_dataset.csv"
 BUNDLE_FILE = ROOT / "models" / "qb_v2_bundle.joblib"
@@ -228,6 +230,14 @@ def main() -> None:
     features = bundle["features"]
     role_model = bundle["role_classifier"]
     points_model = bundle["conditional_regressor"]
+    uncertainty = bundle.get("uncertainty")
+
+    if uncertainty is None:
+        raise RuntimeError(
+            "QB model bundle has no uncertainty calibration. "
+            "Run 'py run_weekly.py --retrain' once after pulling the "
+            "uncertainty update."
+        )
 
     reference_medians = build_reference_medians(df)
 
@@ -290,6 +300,21 @@ def main() -> None:
         conditional_points,
         0.0,
     )
+    output["prediction_low_80"] = np.nan
+    output["prediction_high_80"] = np.nan
+
+    selected_mask = selected.astype(bool)
+    if selected_mask.any():
+        low, high = apply_residual_intervals(
+            output.loc[
+                selected_mask,
+                "gridironiq_projection",
+            ].to_numpy(),
+            role_probability[selected_mask],
+            uncertainty,
+        )
+        output.loc[selected_mask, "prediction_low_80"] = low
+        output.loc[selected_mask, "prediction_high_80"] = high
 
     explanations = [
         explain_candidate(
@@ -354,6 +379,8 @@ def main() -> None:
             "home_away",
             "meaningful_role_probability",
             "gridironiq_projection",
+            "prediction_low_80",
+            "prediction_high_80",
             "team_spread_line",
             "game_total_line",
         ]
@@ -365,6 +392,8 @@ def main() -> None:
             formatters={
                 "meaningful_role_probability": "{:.1%}".format,
                 "gridironiq_projection": "{:.2f}".format,
+                "prediction_low_80": "{:.2f}".format,
+                "prediction_high_80": "{:.2f}".format,
                 "team_spread_line": "{:.1f}".format,
                 "game_total_line": "{:.1f}".format,
             },
@@ -383,6 +412,11 @@ def main() -> None:
             f"\n#{int(row['rank'])} {row['player_name']} "
             f"({row['team']} vs {row['opponent']}) — "
             f"{row['gridironiq_projection']:.2f} FP"
+        )
+        print(
+            f"  80% historical range: "
+            f"{row['prediction_low_80']:.2f} to "
+            f"{row['prediction_high_80']:.2f} FP"
         )
         print(f"  + {row['key_positives']}")
         print(f"  - {row['key_negatives']}")
