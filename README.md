@@ -157,7 +157,7 @@ The v1 **8.470 MAE** and v2 **5.321 all-candidate MAE** are not directly compara
 
 ## Weekly Workflow
 
-After the QB v2 models have been trained once, the normal weekly workflow is a single command:
+After the QB v2 and RB v2 models have each been trained once, the normal weekly workflow is a single command:
 
 ```cmd
 py run_weekly.py
@@ -168,25 +168,29 @@ That command:
 1. refreshes the live 2026 nflverse files and schedule/results data;
 2. rebuilds the processed historical tables;
 3. rebuilds the QB v2 pregame candidate dataset;
-4. loads the saved QB v2 model bundle and generates the earliest upcoming week's rankings.
+4. rebuilds the RB v2 pregame candidate dataset;
+5. loads the saved QB v2 model bundle and generates the earliest upcoming week's QB rankings;
+6. loads the saved RB v2 model bundle and generates the earliest upcoming week's RB rankings.
 
-The main weekly output is:
+The main weekly outputs are:
 
 ```text
 data/processed/qb_v2_weekly_rankings.csv
+data/processed/rb_v2_weekly_rankings.csv
 ```
 
-All future QB candidates and their role probabilities are also saved to:
+All future candidates and role probabilities are also saved to:
 
 ```text
 data/processed/qb_v2_all_future_candidates.csv
+data/processed/rb_v2_all_future_candidates.csv
 ```
 
 The weekly rankings file also includes `key_positives` and `key_negatives` columns. These are descriptive context signals built from recent fantasy form, betting environment, opponent pass-defense trends, pass rush, rest, home/away status, weather, injury status, and role confidence. They are intentionally labeled as context signals rather than exact Random Forest feature-attribution values.
 
 The command-line report prints the top 10 QBs with a short explanation of why GridironIQ likes or dislikes the matchup.
 
-Use `py run_weekly.py --retrain` only when intentionally refitting the official QB v2 models. Normal weekly refreshes do not need to retrain the 2021-2025 model.
+Use `py run_weekly.py --retrain` only when intentionally refitting the official QB v2 and RB v2 models. Normal weekly refreshes do not need to retrain the 2021-2025 models.
 
 ## QB Start / Sit Comparison
 
