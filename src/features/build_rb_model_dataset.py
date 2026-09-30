@@ -544,6 +544,9 @@ def main() -> None:
     rbs = players[
         players["position"].astype(str).eq("RB")
     ].copy()
+    rbs["opponent_team"] = normalize_team_code(
+        rbs["opponent_team"].astype(str)
+    )
 
     return_activity = pd.Series(0.0, index=rbs.index)
     for name in [
