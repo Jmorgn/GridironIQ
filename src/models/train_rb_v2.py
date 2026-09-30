@@ -148,9 +148,17 @@ def main() -> None:
     print("Uncertainty calibration:")
     print(f"  {calibration_summary(uncertainty)}")
     for name, bucket in uncertainty["buckets"].items():
-        fallback = " (fallback)" if bucket.get("uses_fallback") else ""
+        if bucket.get("uses_fallback"):
+            source_rows = bucket.get("source_rows", 0)
+            sample_text = (
+                f"source n={source_rows:,}; using all-sample fallback "
+                f"n={bucket['n']:,}"
+            )
+        else:
+            sample_text = f"n={bucket['n']:,}"
+
         print(
-            f"  {name:<6} n={bucket['n']:,}{fallback} | "
+            f"  {name:<6} {sample_text} | "
             f"coverage={bucket['empirical_coverage']:.1%} | "
             f"offsets={bucket['lower_residual']:+.2f}/"
             f"{bucket['upper_residual']:+.2f}"
