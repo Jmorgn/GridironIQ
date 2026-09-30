@@ -315,12 +315,37 @@ Average 2023-2025 results:
 
 Gradient Boosting is the WR v1 active-game benchmark. It reduced MAE by **7.2%** versus the Last-3 fantasy-points baseline.
 
-WR v1 does not yet solve the full pregame participation problem. WR v2 will start from the depth-chart candidate pool and test snap participation, target volume, target share, and combined role definitions rather than assuming one receiver per team.
+WR v1 does not yet solve the full pregame participation problem. WR v2 starts from the depth-chart candidate pool and tests snap participation, target volume, target share, and combined role definitions rather than assuming one receiver per team.
 
-Audit the historical WR candidate pool with:
+The historical WR candidate audit found **15,540** pregame depth-chart rows. **34.7%** recorded zero fantasy-relevant activity, while **81.6%** played at least one offensive snap. WR1s averaged **10.14 fantasy points**, but WR2s and WR3s still averaged **4.27** and **3.19**, confirming that WR production should not use a one-player-per-team gate.
+
+Role prevalence in the candidate pool:
+
+- 50%+ offensive snaps: **44.7%**
+- 65%+ offensive snaps: **35.3%**
+- 5+ targets: **30.3%**
+- 20%+ target share: **20.0%**
+- 50% snaps OR 5+ targets: **46.6%**
+- 65% snaps OR 5+ targets: **40.7%**
+
+WR v2 now evaluates six candidate role definitions with 2023-2025 walk-forward validation:
+
+```text
+snap_50_role
+snap_65_role
+target_5_role
+target_share_20_role
+snap50_or_target5_role
+snap65_or_target5_role
+```
+
+For each role definition, GridironIQ compares a role classifier + soft expected-points model, a 50% hard role gate, and a direct candidate Gradient Boosting control.
+
+Build and validate WR v2 with:
 
 ```cmd
-py src\features\audit_wr_candidates.py
+py src\features\build_wr_v2_candidate_dataset.py
+py src\models\walk_forward_wr_v2.py
 ```
 
 ## Prediction Uncertainty
