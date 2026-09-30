@@ -287,6 +287,29 @@ The RB comparison shows official rank, soft expected projection, probability of 
 
 It also uses SHAP to explain the conditional Gradient Boosting fantasy-points model. Those additive SHAP values explain the conditional points prediction only; the separate workload classifier then scales that prediction by the player's probability of reaching 35% offensive snaps.
 
+## Prediction Uncertainty
+
+QB v2 and RB v2 now include empirical **80% historical prediction intervals**. These are calibrated from out-of-season 2023-2025 walk-forward residuals using each position's actual production scoring rule.
+
+The calibration is role-aware: residual ranges are estimated separately for low, medium, and high predicted role-confidence buckets when enough historical rows are available. This lets a high-confidence starter use a different historical error distribution than a low-confidence backup or committee player.
+
+Weekly ranking files include:
+
+```text
+prediction_low_80
+prediction_high_80
+```
+
+Start/sit comparison tools display the same interval and flag when the two players' historical 80% ranges overlap.
+
+These ranges are empirical uncertainty estimates, not guaranteed floors or ceilings. They describe how the production models missed on comparable historical walk-forward predictions; future seasons can behave differently.
+
+Because the uncertainty calibration is stored inside the saved model bundles, existing local bundles must be retrained once after pulling this update:
+
+```cmd
+py run_weekly.py --retrain
+```
+
 ## Long-Term Roadmap
 
 Later phases will add RB/WR/TE models, travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, uncertainty ranges, player correlation, and matchup-level win-probability recommendations.
