@@ -157,7 +157,7 @@ The v1 **8.470 MAE** and v2 **5.321 all-candidate MAE** are not directly compara
 
 ## Weekly Workflow
 
-After the QB v2 and RB v2 models have each been trained once, the normal weekly workflow is a single command:
+After the QB v2, RB v2, and WR v2 models have each been trained once, the normal weekly workflow is a single command:
 
 ```cmd
 py run_weekly.py
@@ -169,14 +169,17 @@ That command:
 2. rebuilds the processed historical tables;
 3. rebuilds the QB v2 pregame candidate dataset;
 4. rebuilds the RB v2 pregame candidate dataset;
-5. loads the saved QB v2 model bundle and generates the earliest upcoming week's QB rankings;
-6. loads the saved RB v2 model bundle and generates the earliest upcoming week's RB rankings.
+5. rebuilds the WR v2 pregame candidate dataset;
+6. loads the saved QB v2 model bundle and generates the earliest upcoming week's QB rankings;
+7. loads the saved RB v2 model bundle and generates the earliest upcoming week's RB rankings;
+8. loads the saved WR v2 model bundle and generates the earliest upcoming week's WR rankings.
 
 The main weekly outputs are:
 
 ```text
 data/processed/qb_v2_weekly_rankings.csv
 data/processed/rb_v2_weekly_rankings.csv
+data/processed/wr_v2_weekly_rankings.csv
 ```
 
 All future candidates and role probabilities are also saved to:
@@ -184,13 +187,14 @@ All future candidates and role probabilities are also saved to:
 ```text
 data/processed/qb_v2_all_future_candidates.csv
 data/processed/rb_v2_all_future_candidates.csv
+data/processed/wr_v2_all_future_candidates.csv
 ```
 
 The weekly rankings file also includes `key_positives` and `key_negatives` columns. These are descriptive context signals built from recent fantasy form, betting environment, opponent pass-defense trends, pass rush, rest, home/away status, weather, injury status, and role confidence. They are intentionally labeled as context signals rather than exact Random Forest feature-attribution values.
 
 The command-line report prints the top 10 QBs with a short explanation of why GridironIQ likes or dislikes the matchup.
 
-Use `py run_weekly.py --retrain` only when intentionally refitting the official QB v2 and RB v2 models. Normal weekly refreshes do not need to retrain the 2021-2025 models.
+Use `py run_weekly.py --retrain` only when intentionally refitting the official QB v2, RB v2, and WR v2 models. Normal weekly refreshes do not need to retrain the 2021-2025 models.
 
 ## QB Start / Sit Comparison
 
@@ -328,7 +332,9 @@ Role prevalence in the candidate pool:
 - 50% snaps OR 5+ targets: **46.6%**
 - 65% snaps OR 5+ targets: **40.7%**
 
-WR v2 now evaluates six candidate role definitions with 2023-2025 walk-forward validation:
+### WR Model v2
+
+WR v2 evaluated six candidate role definitions with 2023-2025 walk-forward validation:
 
 ```text
 snap_50_role
@@ -339,18 +345,53 @@ snap50_or_target5_role
 snap65_or_target5_role
 ```
 
-For each role definition, GridironIQ compares a role classifier + soft expected-points model, a 50% hard role gate, and a direct candidate Gradient Boosting control.
+For each role definition, GridironIQ compared a role classifier + soft expected-points model, a 50% hard role gate, and a direct candidate Gradient Boosting control.
 
-Build and validate WR v2 with:
+The selected production architecture is the **65% snap-share classifier + soft expected-points projection** because it produced the lowest average all-candidate MAE:
+
+| Role / scoring method | All MAE | WR1 MAE | WR2 MAE | WR3 MAE | Played MAE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| **65% snaps + soft expected points** | **4.190** | 6.538 | 3.944 | **2.942** | 4.725 |
+| 50% snaps + soft expected points | 4.198 | **6.519** | **3.940** | 2.948 | 4.691 |
+| 20% target share + soft expected points | 4.205 | 6.559 | 3.957 | 2.988 | 4.692 |
+| 50% snaps OR 5+ targets + soft expected points | 4.208 | 6.521 | **3.940** | 2.969 | **4.673** |
+| Direct candidate Gradient Boosting | 4.387 | 6.634 | 4.112 | 3.156 | 4.686 |
+
+The 50% snap-role model remains an important near-tie: its classifier had slightly stronger discrimination (**0.910 AUC** vs **0.906**) and it performed slightly better on WR1, WR2, and played-WR subsets. The production choice follows the predeclared all-candidate MAE criterion rather than switching metrics after seeing the results.
+
+The production WR v2 formula is:
+
+```text
+P(65%+ offensive snaps) × fantasy points conditional on that role
+```
+
+No one-WR-per-team gate is applied.
+
+WR v1's 5.093 MAE and WR v2's 4.190 all-candidate MAE are not directly comparable because the evaluation populations differ.
+
+Train the official WR v2 models with:
 
 ```cmd
-py src\features\build_wr_v2_candidate_dataset.py
-py src\models\walk_forward_wr_v2.py
+py src\models\train_wr_v2.py
 ```
+
+Then generate current-week WR rankings with:
+
+```cmd
+py src\models\predict_wr_v2.py
+```
+
+Compare two current-week wide receivers with:
+
+```cmd
+py compare_wrs.py "Amon-Ra St. Brown" "Puka Nacua"
+```
+
+The WR comparison includes rank, role probability, conditional points, soft expected projection, target/snap context, WR-room competition, game environment, calibrated uncertainty, and SHAP attribution for the conditional Gradient Boosting model.
 
 ## Prediction Uncertainty
 
-QB v2 and RB v2 now include empirical **80% historical prediction intervals**. These are calibrated from out-of-season 2023-2025 walk-forward residuals using each position's actual production scoring rule.
+QB v2, RB v2, and WR v2 include empirical **80% historical prediction intervals**. These are calibrated from out-of-season 2023-2025 walk-forward residuals using each position's actual production scoring rule.
 
 The calibration is role-aware: residual ranges are estimated separately for low, medium, and high predicted role-confidence buckets when enough historical rows are available. This lets a high-confidence starter use a different historical error distribution than a low-confidence backup or committee player.
 
@@ -373,4 +414,4 @@ py run_weekly.py --retrain
 
 ## Long-Term Roadmap
 
-Later phases will finish WR v2 and TE models, then add travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, player correlation, and matchup-level win-probability recommendations.
+Later phases will add TE modeling, then travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, player correlation, and matchup-level win-probability recommendations.
