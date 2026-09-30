@@ -11,7 +11,11 @@ Stage 2:
 
 Production gate:
     For each team/week, only the QB with the highest role probability receives
-    the conditional fantasy projection. Other listed QBs receive 0.
+    the conditional fantasy projection. Other listed QBs receive zero.
+
+Uncertainty:
+    An empirical 80% interval is calibrated from out-of-season 2023-2025
+    residuals for the QBs selected by the same top-role-per-team rule.
 
 2026 is used only for current live/future predictions.
 """
@@ -24,8 +28,14 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from uncertainty import (
+    apply_residual_intervals,
+    build_residual_calibration,
+    calibration_summary,
+)
 from walk_forward_qb_v2 import (
     CATEGORICAL,
+    FOLDS,
     IDENTIFIERS,
     ROLE_TARGET,
     TARGET,
@@ -62,6 +72,75 @@ def select_top_role_per_team(
     return selected
 
 
+def build_uncertainty_calibration(
+    historical: pd.DataFrame,
+    features: list[str],
+) -> dict:
+    """Calibrate intervals from walk-forward-selected QB residuals."""
+    actual_parts = []
+    prediction_parts = []
+    probability_parts = []
+
+    print("\nCalibrating QB uncertainty from 2023-2025 walk-forward residuals...")
+
+    for train_start, train_end, test_season in FOLDS:
+        train = historical[
+            historical["season"].between(train_start, train_end)
+        ].copy()
+        test = historical[
+            historical["season"].eq(test_season)
+        ].copy()
+
+        role_model = make_role_classifier(features)
+        role_model.fit(
+            train[features],
+            train[ROLE_TARGET].astype(int),
+        )
+
+        role_probability = role_model.predict_proba(
+            test[features]
+        )[:, 1]
+
+        role_rows = train[train[ROLE_TARGET].eq(1)].copy()
+        points_model = make_regressor(features)
+        points_model.fit(
+            role_rows[features],
+            role_rows[TARGET],
+        )
+
+        conditional_points = np.maximum(
+            points_model.predict(test[features]),
+            0.0,
+        )
+
+        selected = select_top_role_per_team(
+            test,
+            role_probability,
+        ).astype(bool)
+
+        actual_parts.append(
+            test.loc[selected, TARGET].to_numpy(dtype=float)
+        )
+        prediction_parts.append(
+            conditional_points[selected]
+        )
+        probability_parts.append(
+            role_probability[selected]
+        )
+
+    actual = np.concatenate(actual_parts)
+    prediction = np.concatenate(prediction_parts)
+    probability = np.concatenate(probability_parts)
+
+    return build_residual_calibration(
+        actual,
+        prediction,
+        probability,
+        nominal_coverage=0.80,
+        min_bucket_rows=100,
+    )
+
+
 def main() -> None:
     df = pd.read_csv(DATA_FILE, low_memory=False)
 
@@ -82,11 +161,27 @@ def main() -> None:
     conditional_model = make_regressor(features)
 
     print("GRIDIRONIQ OFFICIAL QB V2")
-    print("=" * 58)
+    print("=" * 68)
     print("Selection method: walk-forward validation, 2023-2025")
     print("Production gate: highest role probability per team/week")
+    print("Uncertainty: historical walk-forward 80% residual interval")
     print(f"Historical candidate rows: {len(historical):,}")
     print(f"Pregame features:          {len(features)}")
+
+    uncertainty = build_uncertainty_calibration(
+        historical,
+        features,
+    )
+    print("Uncertainty calibration:")
+    print(f"  {calibration_summary(uncertainty)}")
+    for name, bucket in uncertainty["buckets"].items():
+        fallback = " (fallback)" if bucket.get("uses_fallback") else ""
+        print(
+            f"  {name:<6} n={bucket['n']:,}{fallback} | "
+            f"coverage={bucket['empirical_coverage']:.1%} | "
+            f"offsets={bucket['lower_residual']:+.2f}/"
+            f"{bucket['upper_residual']:+.2f}"
+        )
 
     print("\nTraining role classifier on 2021-2025...")
     role_model.fit(
@@ -122,6 +217,7 @@ def main() -> None:
             "categorical_features": sorted(CATEGORICAL),
             "role_classifier": role_model,
             "conditional_regressor": conditional_model,
+            "uncertainty": uncertainty,
         },
         bundle_path,
     )
@@ -147,6 +243,12 @@ def main() -> None:
             role_probability,
         )
 
+        production_points = np.where(
+            selected == 1,
+            conditional_points,
+            0.0,
+        )
+
         predictions = future[
             [
                 "player_id",
@@ -166,11 +268,26 @@ def main() -> None:
         predictions["soft_expected_fantasy_points"] = (
             role_probability * conditional_points
         )
-        predictions["gridironiq_v2_fantasy_points"] = np.where(
-            selected == 1,
-            conditional_points,
-            0.0,
-        )
+        predictions["gridironiq_v2_fantasy_points"] = production_points
+
+        predictions["prediction_low_80"] = np.nan
+        predictions["prediction_high_80"] = np.nan
+
+        selected_mask = selected.astype(bool)
+        if selected_mask.any():
+            low, high = apply_residual_intervals(
+                production_points[selected_mask],
+                role_probability[selected_mask],
+                uncertainty,
+            )
+            predictions.loc[
+                selected_mask,
+                "prediction_low_80",
+            ] = low
+            predictions.loc[
+                selected_mask,
+                "prediction_high_80",
+            ] = high
 
         predictions = predictions.sort_values(
             [
@@ -184,7 +301,7 @@ def main() -> None:
         predictions.to_csv(OUTPUT_FILE, index=False)
 
         print("\nCURRENT OFFICIAL V2 FUTURE PROJECTIONS")
-        print("=" * 58)
+        print("=" * 68)
         print(
             predictions[
                 predictions["selected_team_qb"].eq(1)
@@ -195,6 +312,8 @@ def main() -> None:
                     "conditional_fantasy_points": "{:.2f}".format,
                     "soft_expected_fantasy_points": "{:.2f}".format,
                     "gridironiq_v2_fantasy_points": "{:.2f}".format,
+                    "prediction_low_80": "{:.2f}".format,
+                    "prediction_high_80": "{:.2f}".format,
                 },
             )
         )
