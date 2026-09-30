@@ -237,12 +237,40 @@ Gradient Boosting is the current RB v1 benchmark because it produced the lowest 
 
 RB v1 is intentionally an active-game benchmark. It does not yet solve the harder pregame workload problem for inactive backs, committees, injury replacements, or multiple fantasy-relevant RBs on the same team.
 
-The next step is an RB candidate audit using historical depth charts, snap share, opportunities, and fantasy output. The audit is designed to choose an evidence-based workload/role target before building RB v2.
+The RB candidate audit found **9,601** historical pregame depth-chart rows. **75.8%** played at least one offensive snap, while **33.7%** recorded zero fantasy-relevant activity. RB1s averaged 11.92 fantasy points, but RB2s still averaged 6.31 points and reached 10+ opportunities in 30.6% of rows, confirming that RB production should not use a one-player-per-team gate.
 
-Run:
+### RB Model v2
+
+RB v2 starts from the full pregame depth-chart candidate pool and adds player workload history, snap share, carry/target/opportunity share, RB-room competition, injury context, game environment, and opponent defense.
+
+Three role definitions were tested with 2023-2025 walk-forward validation:
+
+- `snap_35_role`: at least 35% offensive snaps
+- `opp_10_role`: at least 10 carries + targets
+- `meaningful_workload`: either 35% snaps or 10+ opportunities
+
+The best all-candidate result was the **35% snap-share classifier + soft expected-points projection**, with **4.167 MAE**. The role classifier averaged **0.916 ROC AUC**, **0.109 Brier score**, **0.791 precision**, **0.821 recall**, and **0.852 accuracy**.
+
+The production RB v2 formula is:
+
+```text
+P(35%+ offensive snaps) × fantasy points conditional on that role
+```
+
+No one-RB-per-team gate is applied because NFL backfields commonly support multiple fantasy-relevant players.
+
+RB v1's 5.043 MAE and RB v2's 4.167 all-candidate MAE are not directly comparable because their evaluation populations differ.
+
+Train the official RB v2 models with:
 
 ```cmd
-py src\features\audit_rb_candidates.py
+py src\models\train_rb_v2.py
+```
+
+Then generate current-week RB rankings with:
+
+```cmd
+py src\models\predict_rb_v2.py
 ```
 
 ## Long-Term Roadmap
