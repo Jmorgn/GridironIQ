@@ -494,12 +494,54 @@ data/processed/te_model_dataset.csv
 data/processed/te_v1_walk_forward_results.csv
 ```
 
-**Status:** scripts added; benchmark results pending local execution.
-TE v1 is an active-game benchmark, not a full pregame projection model.
-The next step is a schedule-filtered TE depth-chart candidate audit,
-followed by testing actual participation and target/opportunity definitions
-for TE v2. Raw offensive snap share should not automatically be treated
-as route participation or receiving opportunity for a tight end.
+The active-game dataset contains **5,460 historical TE-games from
+2021-2025**, with **94.9% depth-chart coverage** and **95.9% prior-snap
+coverage**. The model evaluated **94 pregame features**.
+
+Walk-forward validation:
+
+| Fold | Train | Test | Gradient Boosting MAE | Listed TE1 MAE |
+| --- | --- | --- | ---: | ---: |
+| 1 | 2021-2022 | 2023 | 3.768 | 4.464 |
+| 2 | 2021-2023 | 2024 | 3.929 | 4.845 |
+| 3 | 2021-2024 | 2025 | 3.904 | 5.171 |
+
+Average 2023-2025 results:
+
+| Model | MAE | Listed TE1 MAE | RMSE | R² |
+| --- | ---: | ---: | ---: | ---: |
+| **Gradient Boosting** | **3.867** | **4.827** | **5.341** | **0.270** |
+| Random Forest | 3.883 | 4.858 | 5.360 | 0.265 |
+| Linear Regression | 3.985 | 4.901 | 5.471 | 0.233 |
+| Last-3 baseline | 4.230 | 5.323 | 5.897 | 0.110 |
+| Mean baseline | 4.700 | 5.410 | 6.252 | -0.001 |
+
+Gradient Boosting is the TE v1 active-game benchmark, improving on
+Last-3 MAE by **8.6%**. These are errors on TEs with recorded
+fantasy-relevant activity; they are not full pregame-candidate errors.
+
+### Next: TE pregame candidate audit
+
+TE v1 is not a full pregame projection model. TE v2 will start from a
+schedule-filtered depth-chart candidate population that includes inactive,
+blocking-focused, and rotating tight ends.
+
+Run the historical audit with:
+
+```cmd
+py src\features\audit_te_candidates.py
+```
+
+The audit measures offensive snap thresholds (25%/35%/50%/65%),
+target thresholds (1/3/5), target shares (10%/15%/20%), combined
+definitions, and snap-versus-target mismatches by TE depth-chart rank.
+It writes `data/processed/te_candidate_audit.csv`.
+
+Raw offensive snap share must not be treated as route participation or
+receiving opportunity. We will choose candidate definitions based on
+these findings and subsequent walk-forward validation, not assume that
+a blocking-heavy tight end is fantasy-relevant simply because he
+played many snaps.
 
 ## Prediction Uncertainty
 
