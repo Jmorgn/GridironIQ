@@ -157,7 +157,7 @@ The v1 **8.470 MAE** and v2 **5.321 all-candidate MAE** are not directly compara
 
 ## Weekly Workflow
 
-After the QB v2, RB v2, and WR v2 models have each been trained once, the normal weekly workflow is a single command:
+After the QB v2, RB v2, WR v2, and TE v2 models have each been trained once, the normal weekly workflow is a single command:
 
 ```cmd
 py run_weekly.py
@@ -170,9 +170,11 @@ That command:
 3. rebuilds the QB v2 pregame candidate dataset;
 4. rebuilds the RB v2 pregame candidate dataset;
 5. rebuilds the WR v2 pregame candidate dataset;
-6. loads the saved QB v2 model bundle and generates the earliest upcoming week's QB rankings;
-7. loads the saved RB v2 model bundle and generates the earliest upcoming week's RB rankings;
-8. loads the saved WR v2 model bundle and generates the earliest upcoming week's WR rankings.
+6. rebuilds the TE v2 pregame candidate dataset;
+7. loads the saved QB v2 model bundle and generates the earliest upcoming week's QB rankings;
+8. loads the saved RB v2 model bundle and generates the earliest upcoming week's RB rankings;
+9. loads the saved WR v2 model bundle and generates the earliest upcoming week's WR rankings;
+10. loads the saved TE v2 model bundle and generates the earliest upcoming week's TE rankings.
 
 The main weekly outputs are:
 
@@ -180,6 +182,7 @@ The main weekly outputs are:
 data/processed/qb_v2_weekly_rankings.csv
 data/processed/rb_v2_weekly_rankings.csv
 data/processed/wr_v2_weekly_rankings.csv
+data/processed/te_v2_weekly_rankings.csv
 ```
 
 All future candidates and role probabilities are also saved to:
@@ -188,13 +191,14 @@ All future candidates and role probabilities are also saved to:
 data/processed/qb_v2_all_future_candidates.csv
 data/processed/rb_v2_all_future_candidates.csv
 data/processed/wr_v2_all_future_candidates.csv
+data/processed/te_v2_all_future_candidates.csv
 ```
 
 The weekly rankings file also includes `key_positives` and `key_negatives` columns. These are descriptive context signals built from recent fantasy form, betting environment, opponent pass-defense trends, pass rush, rest, home/away status, weather, injury status, and role confidence. They are intentionally labeled as context signals rather than exact Random Forest feature-attribution values.
 
 The command-line report prints the top 10 QBs with a short explanation of why GridironIQ likes or dislikes the matchup.
 
-Use `py run_weekly.py --retrain` only when intentionally refitting the official QB v2, RB v2, and WR v2 models. Normal weekly refreshes do not need to retrain the 2021-2025 models.
+Use `py run_weekly.py --retrain` only when intentionally refitting the official QB v2, RB v2, WR v2, and TE v2 models. Normal weekly refreshes do not need to retrain the 2021-2025 models.
 
 ## QB Start / Sit Comparison
 
@@ -593,13 +597,68 @@ data/processed/te_v2_candidate_dataset.csv
 data/processed/te_v2_walk_forward_results.csv
 ```
 
-**Status:** TE v2 research scripts committed; walk-forward results
-pending local execution. The existing QB/RB/WR production pipeline is
-unchanged, and no TE v2 production role has yet been selected.
+### TE v2 production selection
+
+The candidate build reproduced **9,274 historical TE rows**, **115
+pregame features**, **145 future/unplayed 2026 candidates**, and
+**100% future opponent-defense feature coverage** as reported by the
+local build. We tested all eight role labels on the same 2023-2025
+walk-forward seasons.
+
+Selected architecture: the **50% offensive-snap role classifier +
+conditional Gradient Boosting regressor**, using a soft
+probability-weighted fantasy projection. It had the lowest average
+all-candidate MAE, and the role classifier had the highest AUC of
+the eight definitions (0.906).
+
+| Scoring method | All-candidate MAE | TE1 MAE | Played MAE | Fixed top-12 MAE |
+| --- | ---: | ---: | ---: | ---: |
+| **50% snaps + soft expected points** | **2.603** | **4.594** | 2.921 | 5.879 |
+| 15% target share + soft expected points | 2.621 | 4.664 | **2.907** | 6.044 |
+| 35% snaps + soft expected points | 2.636 | 4.609 | 2.951 | **5.870** |
+| Direct candidate Gradient Boosting | 2.810 | 4.705 | 3.049 | 5.992 |
+
+The 35% snap model was 0.009 FP better on the fixed projected top-12
+cohort, while the 15% target-share model had slightly lower played-TE
+MAE. The production choice follows the all-candidate MAE objective;
+the small top-12 difference is a reason to keep evaluating TE
+lineup decisions on fresh games. TE v1's 3.867 active-game MAE is
+**not directly comparable** to TE v2's all-candidate MAE.
+
+Official production projection:
+
+```text
+P(50%+ offensive snaps) × fantasy points conditional on that role
+```
+
+No one-TE-per-team gate is applied. Snap share includes blocking;
+it must **not** be interpreted as the likelihood of running a route
+or earning a target.
+
+Train the new TE production bundle (including historical 80%
+walk-forward residual uncertainty) and generate weekly rankings:
+
+```cmd
+py src\models\train_te_v2.py
+py src\models\predict_te_v2.py
+```
+
+Compare two tight ends:
+
+```cmd
+py compare_tes.py "George Kittle" "Brock Bowers"
+```
+
+After TE has been trained once, `py run_weekly.py` runs
+QB, RB, WR, and TE together. `py run_weekly.py --retrain` refits
+all four position models. TE-specific opponent features have not
+yet been isolated in a feature ablation experiment.
+
+
 
 ## Prediction Uncertainty
 
-QB v2, RB v2, and WR v2 include empirical **80% historical prediction intervals**. These are calibrated from out-of-season 2023-2025 walk-forward residuals using each position's actual production scoring rule.
+QB v2, RB v2, WR v2, and TE v2 include empirical **80% historical prediction intervals**. These are calibrated from out-of-season 2023-2025 walk-forward residuals using each position's actual production scoring rule.
 
 The calibration is role-aware: residual ranges are estimated separately for low, medium, and high predicted role-confidence buckets when enough historical rows are available. This lets a high-confidence starter use a different historical error distribution than a low-confidence backup or committee player.
 
@@ -622,4 +681,4 @@ py run_weekly.py --retrain
 
 ## Long-Term Roadmap
 
-Later phases will finish TE v2 and add travel distance, defensive personnel changes, supporting-cast availability, tracking/charting features when available, player correlation, and matchup-level win-probability recommendations. The proposed offensive-scheme, receiver-route, defensive-coverage and individual-defender matchup research is outlined in [Scheme-aware matchup roadmap](docs/scheme_aware_matchups.md).
+Later phases will add travel distance, defensive personnel changes, supporting-cast availability, tracking/charting features when available, player correlation, and matchup-level win-probability recommendations. The proposed offensive-scheme, receiver-route, defensive-coverage and individual-defender matchup research is outlined in [Scheme-aware matchup roadmap](docs/scheme_aware_matchups.md).
