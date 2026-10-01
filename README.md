@@ -458,6 +458,49 @@ CSV outputs remain available for future investigation. In future, test
 target/route opportunity or a more carefully calibrated below-threshold
 branch rather than promoting this mixture based only on its formula.
 
+## TE Model v1 (Benchmark)
+
+TE v1 follows the active-game baseline used for RB and WR. It builds a
+historical tight-end dataset from players who recorded fantasy-relevant
+game activity, then uses 2023, 2024, and 2025 as consecutive unseen-season
+walk-forward validation folds. The 2026 season is excluded from model
+selection.
+
+The model table includes pregame rolling fantasy production, targets,
+receptions, receiving yards and touchdowns, receiving efficiency, team
+receiving shares, offensive snap count/share, depth-chart TE rank,
+injury/practice reports, game environment, and opponent passing-defense
+trends. It also includes **prior TE-specific defensive trends** for targets,
+receptions, receiving yards, and custom fantasy points allowed to tight
+ends. These are descriptive opponent statistics, not verified route or
+coverage assignments.
+
+The v1 benchmarks are the training-population mean and last-three-game
+fantasy average versus Linear Regression, Random Forest, and Gradient
+Boosting. All rolling statistics are shifted to prior games, and
+the validation also reports error on the **listed TE1** subgroup.
+
+Build the TE v1 dataset and evaluate it with:
+
+```cmd
+py src\features\build_te_model_dataset.py
+py src\models\walk_forward_te_v1.py
+```
+
+Outputs:
+
+```text
+data/processed/te_model_dataset.csv
+data/processed/te_v1_walk_forward_results.csv
+```
+
+**Status:** scripts added; benchmark results pending local execution.
+TE v1 is an active-game benchmark, not a full pregame projection model.
+The next step is a schedule-filtered TE depth-chart candidate audit,
+followed by testing actual participation and target/opportunity definitions
+for TE v2. Raw offensive snap share should not automatically be treated
+as route participation or receiving opportunity for a tight end.
+
 ## Prediction Uncertainty
 
 QB v2, RB v2, and WR v2 include empirical **80% historical prediction intervals**. These are calibrated from out-of-season 2023-2025 walk-forward residuals using each position's actual production scoring rule.
@@ -483,4 +526,4 @@ py run_weekly.py --retrain
 
 ## Long-Term Roadmap
 
-Later phases will add TE modeling, then travel distance, defensive personnel changes, supporting-cast availability, tracking/charting features when available, player correlation, and matchup-level win-probability recommendations. The proposed offensive-scheme, receiver-route, defensive-coverage and individual-defender matchup research is outlined in [Scheme-aware matchup roadmap](docs/scheme_aware_matchups.md).
+Later phases will finish TE v2 and add travel distance, defensive personnel changes, supporting-cast availability, tracking/charting features when available, player correlation, and matchup-level win-probability recommendations. The proposed offensive-scheme, receiver-route, defensive-coverage and individual-defender matchup research is outlined in [Scheme-aware matchup roadmap](docs/scheme_aware_matchups.md).
