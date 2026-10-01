@@ -520,28 +520,82 @@ Gradient Boosting is the TE v1 active-game benchmark, improving on
 Last-3 MAE by **8.6%**. These are errors on TEs with recorded
 fantasy-relevant activity; they are not full pregame-candidate errors.
 
-### Next: TE pregame candidate audit
+### TE pregame candidate audit
 
-TE v1 is not a full pregame projection model. TE v2 will start from a
-schedule-filtered depth-chart candidate population that includes inactive,
-blocking-focused, and rotating tight ends.
+The schedule-filtered 2021-2025 TE depth-chart pool contains **9,274**
+historical candidates. **44.2%** recorded zero fantasy-relevant
+activity and **82.6%** played at least one offensive snap.
 
-Run the historical audit with:
+Selected usage thresholds:
+
+| Role or receiving threshold | Share of all candidates |
+| --- | ---: |
+| 35%+ offensive snaps | 50.2% |
+| 50%+ offensive snaps | 35.2% |
+| 1+ targets | 55.5% |
+| 3+ targets | 29.7% |
+| 5+ targets | 16.2% |
+| 15%+ target share | 15.8% |
+| 35%+ snaps OR 3+ targets | 51.8% |
+| 50%+ snaps OR 3+ targets | 40.4% |
+
+Snap share is not a receiving-role proxy on its own: **206**
+candidates played 50%+ offensive snaps but earned zero targets,
+and **2,047** played 35%+ snaps yet earned fewer than three
+targets. Meanwhile, **109** earned five or more targets on
+fewer than 50% of snaps.
+
+Average fantasy points by TE depth-chart rank were TE1 **6.98**,
+TE2 **2.58**, and TE3 **1.19**. This is a descriptive audit,
+not a production role decision.
+
+Reproduce the audit with:
 
 ```cmd
 py src\features\audit_te_candidates.py
 ```
 
-The audit measures offensive snap thresholds (25%/35%/50%/65%),
-target thresholds (1/3/5), target shares (10%/15%/20%), combined
-definitions, and snap-versus-target mismatches by TE depth-chart rank.
-It writes `data/processed/te_candidate_audit.csv`.
+### TE Model v2 (Walk-forward experiments)
 
-Raw offensive snap share must not be treated as route participation or
-receiving opportunity. We will choose candidate definitions based on
-these findings and subsequent walk-forward validation, not assume that
-a blocking-heavy tight end is fantasy-relevant simply because he
-played many snaps.
+TE v2 starts from the complete pregame depth-chart candidate pool,
+including inactive players and blocking-focused tight ends. It includes
+pregame player usage, competition within the TE room, injury and game
+context, prior opponent-wide receiving trends, and **opponent
+TE-specific fantasy/target/reception/yard/TD trends**.
+
+We retain eight role labels: `snap_35_role`, `snap_50_role`,
+`target_1_role`, `target_3_role`, `target_5_role`,
+`target_share_15_role`, `snap35_or_target3_role`,
+and `snap50_or_target3_role`.
+
+Each definition is evaluated with a Random Forest role classifier and a
+conditional Gradient Boosting fantasy regressor, comparing probability-
+weighted projections, a hard 50% probability gate, and a direct
+candidate Gradient Boosting control.
+
+Validation uses 2023, 2024, and 2025 as strictly forward test seasons
+and excludes 2026 from model selection. In addition to overall MAE,
+it evaluates listed TE1/TE2/TE3, TEs who played, TEs who received
+at least three targets, 10+ FP games, and a **fixed pregame top-12 TE
+cohort** selected by the direct control for each test week.
+
+Build the candidate dataset and run the benchmark:
+
+```cmd
+py src\features\build_te_v2_candidate_dataset.py
+py src\models\walk_forward_te_v2.py
+```
+
+Outputs:
+
+```text
+data/processed/te_v2_candidate_dataset.csv
+data/processed/te_v2_walk_forward_results.csv
+```
+
+**Status:** TE v2 research scripts committed; walk-forward results
+pending local execution. The existing QB/RB/WR production pipeline is
+unchanged, and no TE v2 production role has yet been selected.
 
 ## Prediction Uncertainty
 
