@@ -267,12 +267,12 @@ def regression_row(
             predictions,
             test["listed_te1"].eq(1),
         ),
-        "mae_wr2": subset_mae(
+        "mae_te2": subset_mae(
             test,
             predictions,
             test["depth_chart_te_rank"].eq(2),
         ),
-        "mae_wr3": subset_mae(
+        "mae_te3": subset_mae(
             test,
             predictions,
             test["depth_chart_te_rank"].eq(3),
@@ -424,8 +424,8 @@ def evaluate_role_target(
             f"    {row['model']:<22} "
             f"ALL={row['mae_all_candidates']:.3f} "
             f"TE1={row['mae_te1']:.3f} "
-            f"TE2={row['mae_wr2']:.3f} "
-            f"TE3={row['mae_wr3']:.3f} "
+            f"TE2={row['mae_te2']:.3f} "
+            f"TE3={row['mae_te3']:.3f} "
             f"PLAYED={row['mae_played']:.3f} "
             f"ROLE={row['mae_actual_role']:.3f} "
             f"TGT3={row['mae_target3']:.3f} "
@@ -567,8 +567,8 @@ def main() -> None:
                 "mean",
             ),
             te1_mae=("mae_te1", "mean"),
-            wr2_mae=("mae_wr2", "mean"),
-            wr3_mae=("mae_wr3", "mean"),
+            te2_mae=("mae_te2", "mean"),
+            te3_mae=("mae_te3", "mean"),
             played_mae=("mae_played", "mean"),
             role_mae=(
                 "mae_actual_role",
@@ -587,8 +587,8 @@ def main() -> None:
             formatters={
                 "all_mae": "{:.3f}".format,
                 "te1_mae": "{:.3f}".format,
-                "wr2_mae": "{:.3f}".format,
-                "wr3_mae": "{:.3f}".format,
+                "te2_mae": "{:.3f}".format,
+                "te3_mae": "{:.3f}".format,
                 "played_mae": "{:.3f}".format,
                 "role_mae": "{:.3f}".format,
                 "target3_mae": "{:.3f}".format,
