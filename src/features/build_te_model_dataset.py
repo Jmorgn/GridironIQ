@@ -946,7 +946,7 @@ def main() -> None:
     print(f"Columns:             {len(model.columns)}")
     print(f"2021-2025 rows:      {len(historical):,}")
     print(f"2026 live rows:      {len(live):,}")
-    print(f"TEITE {OUTPUT_FILE}")
+    print(f"WRITE {OUTPUT_FILE}")
 
     depth_coverage = (
         historical["depth_chart_te_rank"].notna().mean()
