@@ -966,8 +966,26 @@ def main() -> None:
         f"Historical prior-snap coverage:  {snap_coverage:.1%}"
     )
 
-    print("\nSample:")
-    print(model.tail(10).to_string(index=False))
+    print("\nSample (compact):")
+    sample_columns = [
+        "player_name",
+        "season",
+        "week",
+        "team",
+        "opponent",
+        "depth_chart_te_rank",
+        "previous_targets",
+        "avg_targets_last_3",
+        "avg_fp_last_3",
+        "actual_fantasy_points",
+    ]
+    sample_columns = [
+        column for column in sample_columns
+        if column in model.columns
+    ]
+    print(
+        model[sample_columns].tail(10).to_string(index=False)
+    )
 
 
 if __name__ == "__main__":
