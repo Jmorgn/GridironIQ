@@ -392,9 +392,11 @@ The WR comparison includes rank, role probability, conditional points, soft expe
 ## WR Two-Conditional Experiment (Research Only)
 
 The current WR v2 production model scores receivers using
-`P(65%+ snaps) × E(FP | 65%+ snaps)`. That treats fantasy production
-below the 65% snap threshold as zero, which can undervalue receivers who
-still earn targets in a lower-snap game.
+`P(65%+ snaps) × E(FP | 65%+ snaps)`. This assumes zero production
+from the *below-threshold conditional branch*, although a receiver's
+pregame projection remains positive whenever P(65%+ snaps) is positive.
+Receivers can still earn targets and points in a lower-snap game, so we
+tested whether estimating that branch explicitly improves predictions.
 
 The **research-only** experiment tests:
 
@@ -427,8 +429,34 @@ data/processed/wr_two_conditional_results.csv
 data/processed/wr_two_conditional_oof_predictions.csv
 ```
 
-Do not promote a new production WR formula until its tradeoffs are
-reviewed; its uncertainty calibration would also need to be rebuilt.
+### Result: retain current WR v2 production
+
+The two-conditional experiment **did not improve** walk-forward accuracy
+over the same 2023-2025 test seasons. Mean absolute errors:
+
+| Cohort | Current (zero below-threshold branch) | Two conditionals | Direct GB |
+| --- | ---: | ---: | ---: |
+| All candidates | **4.190** | 4.429 | 4.387 |
+| WR1 | **6.538** | 6.604 | 6.634 |
+| WR2 | **3.944** | 4.233 | 4.112 |
+| WR3 | **2.942** | 3.254 | 3.156 |
+| Played receivers | 4.725 | 4.722 | **4.686** |
+| Actual 65%+ snap role | 6.800 | **6.541** | 6.591 |
+| Actual below-65% role | **2.824** | 3.326 | 3.234 |
+| Played, below 65% | **3.206** | 3.394 | 3.297 |
+| Fixed baseline-projected top 24 | **8.084** | 8.092 | 8.087 |
+
+The mixture raised predicted points on the below-65% group enough to
+move mean signed error from **-0.492** (current model) to **+1.283**
+(two conditionals), worsening that group's MAE by **0.502 FP**.
+The all-candidate MAE deterioration also occurred in every test year.
+
+**Decision:** keep the existing WR v2 role classifier, conditional
+regressor, saved bundle, prediction intervals, ranking pipeline,
+and start/sit comparison unchanged. The research script and its local
+CSV outputs remain available for future investigation. In future, test
+target/route opportunity or a more carefully calibrated below-threshold
+branch rather than promoting this mixture based only on its formula.
 
 ## Prediction Uncertainty
 
