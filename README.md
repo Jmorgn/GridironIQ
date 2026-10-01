@@ -389,6 +389,47 @@ py compare_wrs.py "Amon-Ra St. Brown" "Puka Nacua"
 
 The WR comparison includes rank, role probability, conditional points, soft expected projection, target/snap context, WR-room competition, game environment, calibrated uncertainty, and SHAP attribution for the conditional Gradient Boosting model.
 
+## WR Two-Conditional Experiment (Research Only)
+
+The current WR v2 production model scores receivers using
+`P(65%+ snaps) × E(FP | 65%+ snaps)`. That treats fantasy production
+below the 65% snap threshold as zero, which can undervalue receivers who
+still earn targets in a lower-snap game.
+
+The **research-only** experiment tests:
+
+```text
+Current:  P(65%+ snaps) × E(FP | 65%+ snaps)
+
+Proposed: P(65%+ snaps) × E(FP | 65%+ snaps)
+        + P(below 65%) × E(FP | below 65%)
+
+Control:  Direct candidate Gradient Boosting
+```
+
+It uses the same 2023-2025 walk-forward folds and pregame features as
+the official WR v2 benchmark. It measures overall MAE as well as WR1,
+WR2, WR3, played receivers, actual 65%+ role, actual below-65% role,
+played receivers below 65%, and a **fixed pregame top-24 cohort**
+selected from the current model's projection. It saves fold results
+and individual out-of-fold predictions for inspection.
+
+Run independently (no production model is changed):
+
+```cmd
+py src\models\experiment_wr_two_conditional.py
+```
+
+Outputs:
+
+```text
+data/processed/wr_two_conditional_results.csv
+data/processed/wr_two_conditional_oof_predictions.csv
+```
+
+Do not promote a new production WR formula until its tradeoffs are
+reviewed; its uncertainty calibration would also need to be rebuilt.
+
 ## Prediction Uncertainty
 
 QB v2, RB v2, and WR v2 include empirical **80% historical prediction intervals**. These are calibrated from out-of-season 2023-2025 walk-forward residuals using each position's actual production scoring rule.
@@ -414,4 +455,4 @@ py run_weekly.py --retrain
 
 ## Long-Term Roadmap
 
-Later phases will add TE modeling, then travel distance, defensive personnel changes, supporting-cast availability, Next Gen Stats, player correlation, and matchup-level win-probability recommendations.
+Later phases will add TE modeling, then travel distance, defensive personnel changes, supporting-cast availability, tracking/charting features when available, player correlation, and matchup-level win-probability recommendations. The proposed offensive-scheme, receiver-route, defensive-coverage and individual-defender matchup research is outlined in [Scheme-aware matchup roadmap](docs/scheme_aware_matchups.md).
