@@ -757,14 +757,61 @@ py src\data\audit_k_dst_sources.py
 py -m unittest discover -s tests -v
 ```
 
-The audit checks the real local nflverse distance-bucket
-kicking fields, the kicker pregame depth-chart candidate
-population, aggregated defensive team data, and the
-absence/presence of any downloaded play-by-play. Do not
-train a Kicker or D/ST model until we can reconstruct
-the league's actual scoring without misleading labels.
-The existing QB/RB/WR/TE, RB/WR FLEX, weekly workflow,
-and prospective snapshots remain unchanged.
+The audit confirmed the needed kicking distance-bucket statistics
+and a historical K/PK depth-chart candidate source. It also confirmed
+that several D/ST event statistics need further sourcing, including
+three-and-outs and returned extra points.
+
+### Kicker v1 — pregame dataset and provisional benchmark
+
+Kicker v1 now has a candidate builder and an experimental walk-forward
+benchmark. The 2021–2024 candidate pool uses schedule-filtered weekly
+K depth charts; their actual publication timestamps are unavailable,
+so we do not claim those chart entries are independently verified
+pregame. For 2025–2026, chart timestamps must fall within the
+five days before each game and **before its actual kickoff**.
+
+The dataset joins confirmed distance-specific FG and made-PAT scores
+to historical kickers, including zero-attempt candidates only when
+a completed-game team boxscore exists. Prior player trends, team
+kicking and scoring trends, opponent FG/PAT opportunities, depth
+rank and pregame spread/game-total context are computed without
+using the current game's outcomes as features. Historical
+game-temperature/wind fields are excluded from benchmarking
+until the data can be verified as pregame forecasts.
+
+**Important:** missed and blocked PAT penalties are still
+unconfirmed. K v1 models only `actual_confirmed_component_points`
+and explicitly counts records with missed/blocked PATs. This is
+a **provisional research target**, not a certified Yahoo fantasy
+point total. No K production model is selected or deployed.
+
+Run:
+
+```cmd
+py src\features\build_k_v1_candidate_dataset.py
+py src\models\walk_forward_k_v1.py
+py -m unittest discover -s tests -v
+```
+
+Outputs:
+
+```text
+data/processed/k_v1_candidate_dataset.csv
+data/processed/k_v1_walk_forward_results.csv
+```
+
+The validation compares historical-mean, player-last-3 and team-K-last-3
+baselines with Ridge, Random Forest and Gradient Boosting. It reports
+overall, listed-K1, actual kicking-participant and **fixed pregame
+top-12** MAE across 2023–2025, with 2026 excluded from model selection.
+The dataset builder also prints observed active-kicker candidate
+coverage by year and stops if overall coverage falls below 90%.
+
+D/ST remains at the data-source audit stage until its play-level
+statistics and label reconciliation are verified. The existing
+QB/RB/WR/TE models, RB/WR FLEX, weekly workflow and prospective
+snapshots remain unchanged.
 
 ## Prospective Weekly Performance Tracker
 
