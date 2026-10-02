@@ -223,6 +223,9 @@ data/raw/*
 data/processed/*
 !data/processed/.gitkeep
 
+# Immutable local-only prekickoff forecast history
+data/snapshots/
+
 # Local ML artifacts
 models/
 mlruns/
