@@ -147,7 +147,7 @@ class CandidateOutcomeTests(unittest.TestCase):
         ])
         actual_cols = [
             *builder.KEY,
-            "actual_confirmed_component_points",
+            "actual_fantasy_points",
             "actual_fg_att", "actual_fg_made",
             "actual_pat_att", "actual_pat_made",
             "actual_fg_40plus_made",
@@ -172,12 +172,12 @@ class CandidateOutcomeTests(unittest.TestCase):
         old = result[result["season"].eq(2025)].iloc[0]
         future = result[result["season"].eq(2026)].iloc[0]
         self.assertEqual(
-            float(old["actual_confirmed_component_points"]),
+            float(old["actual_fantasy_points"]),
             0.0,
         )
         self.assertEqual(float(old["actual_active_kicker"]), 0.0)
         self.assertTrue(
-            np.isnan(future["actual_confirmed_component_points"])
+            np.isnan(future["actual_fantasy_points"])
         )
         self.assertTrue(
             np.isnan(future["actual_active_kicker"])
@@ -211,7 +211,7 @@ class BenchmarkContractTests(unittest.TestCase):
         for field in benchmark.FEATURES:
             self.assertFalse(field.startswith("actual_"))
             self.assertNotIn("game_completed", field)
-            self.assertNotIn("has_unconfirmed_pat", field)
+            self.assertNotIn("has_pat_miss_or_block", field)
             self.assertNotIn(field, [
                 "kickoff_utc", "game_wind", "game_temp",
                 "chart_pregame_verified",
