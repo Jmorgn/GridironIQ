@@ -11,6 +11,7 @@ Default weekly workflow:
 8. Generate current-week RB rankings from saved models.
 9. Generate current-week WR rankings from saved models.
 10. Generate current-week TE rankings from saved models.
+11. Save an immutable prekickoff snapshot of all four candidate pools.
 
 Use --retrain when you intentionally want to refit the official QB, RB,
 WR, and TE v2 models before generating rankings.
@@ -77,6 +78,14 @@ def parse_args() -> argparse.Namespace:
             "instead of refreshing nflverse."
         ),
     )
+    parser.add_argument(
+        "--no-snapshot",
+        action="store_true",
+        help=(
+            "Skip saving a timestamped prekickoff prediction "
+            "snapshot (automatic by default)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -103,7 +112,7 @@ def main() -> None:
 
     if not args.skip_download:
         run_step(
-            "STEP 1/10 — Refresh live NFL data",
+            "STEP 1/11 — Refresh live NFL data",
             ROOT
             / "src"
             / "data"
@@ -111,12 +120,12 @@ def main() -> None:
         )
     else:
         print(
-            "\nSTEP 1/10 — Refresh live NFL "
+            "\nSTEP 1/11 — Refresh live NFL "
             "data: SKIPPED"
         )
 
     run_step(
-        "STEP 2/10 — Rebuild processed "
+        "STEP 2/11 — Rebuild processed "
         "historical tables",
         ROOT
         / "src"
@@ -125,7 +134,7 @@ def main() -> None:
     )
 
     run_step(
-        "STEP 3/10 — Build QB v2 pregame "
+        "STEP 3/11 — Build QB v2 pregame "
         "candidate dataset",
         ROOT
         / "src"
@@ -134,7 +143,7 @@ def main() -> None:
     )
 
     run_step(
-        "STEP 4/10 — Build RB v2 pregame "
+        "STEP 4/11 — Build RB v2 pregame "
         "candidate dataset",
         ROOT
         / "src"
@@ -143,7 +152,7 @@ def main() -> None:
     )
 
     run_step(
-        "STEP 5/10 — Build WR v2 pregame "
+        "STEP 5/11 — Build WR v2 pregame "
         "candidate dataset",
         ROOT
         / "src"
@@ -152,7 +161,7 @@ def main() -> None:
     )
 
     run_step(
-        "STEP 6/10 — Build TE v2 pregame "
+        "STEP 6/11 — Build TE v2 pregame "
         "candidate dataset",
         ROOT
         / "src"
@@ -195,7 +204,7 @@ def main() -> None:
         )
 
     run_step(
-        "STEP 7/10 — Generate current-week "
+        "STEP 7/11 — Generate current-week "
         "QB rankings",
         ROOT
         / "src"
@@ -204,7 +213,7 @@ def main() -> None:
     )
 
     run_step(
-        "STEP 8/10 — Generate current-week "
+        "STEP 8/11 — Generate current-week "
         "RB rankings",
         ROOT
         / "src"
@@ -213,7 +222,7 @@ def main() -> None:
     )
 
     run_step(
-        "STEP 9/10 — Generate current-week "
+        "STEP 9/11 — Generate current-week "
         "WR rankings",
         ROOT
         / "src"
@@ -222,13 +231,27 @@ def main() -> None:
     )
 
     run_step(
-        "STEP 10/10 — Generate current-week "
+        "STEP 10/11 — Generate current-week "
         "TE rankings",
         ROOT
         / "src"
         / "models"
         / "predict_te_v2.py",
     )
+
+    if not args.no_snapshot:
+        run_step(
+            "STEP 11/11 — Preserve prekickoff predictions",
+            ROOT
+            / "src"
+            / "evaluation"
+            / "snapshot_predictions.py",
+        )
+    else:
+        print(
+            "\\nSTEP 11/11 — Preserve prekickoff "
+            "predictions: SKIPPED (requested)"
+        )
 
     print(
         "\n" + "=" * 78
@@ -256,6 +279,14 @@ def main() -> None:
         "TE rankings: "
         "data/processed/"
         "te_v2_weekly_rankings.csv"
+    )
+    print(
+        "Pregame snapshots: "
+        "data/snapshots/ (local, immutable)"
+    )
+    print(
+        "After games finish, evaluate with: "
+        "py src\\\\evaluation\\\\evaluate_predictions.py"
     )
 
 
