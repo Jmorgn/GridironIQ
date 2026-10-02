@@ -21,19 +21,22 @@ for other categories. Python constants and validated helper functions:
 | Field goal missed, 40–49 yards | -0.5 |
 | Field goal missed, 50+ yards (unlisted) | 0 |
 | Point-after attempt made | 1 |
+| Point-after attempt missed | 0 |
+| Point-after attempt blocked | 0 |
 
-**Not confirmed by the provided screenshots:** any penalty for a
-missed or blocked extra point. Do not invent these values.
-The user explicitly confirmed that 50+ missed field goals have
-no scoring category and carry zero penalty.
+The user explicitly confirmed that missed and blocked extra
+points carry zero penalty. Missed field goals from 50+ yards
+also have no scoring category and carry zero penalty.
 
 Distance-bucket stats expected in local nflverse player-week files:
 `fg_made_0_19`, `fg_made_20_29`, `fg_made_30_39`,
 `fg_made_40_49`, `fg_made_50_59`, `fg_made_60_`,
 the corresponding `fg_missed_*` columns, and `pat_made`.
-The helper `kicker_known_components()` deliberately returns
-*confirmed component points*, not a guaranteed exact Yahoo result.
-It records missed field goals from 50+ yards as zero-penalty attempts.
+The helper `kicker_known_components()` returns `fantasy_points`
+using all confirmed league Kicker scoring categories. It also
+retains the former `confirmed_component_points` key as a
+backward-compatible alias. Field goals missed from 50+ yards
+and missed/blocked extra points score zero.
 
 ## Defense / Special Teams (D/ST)
 
@@ -116,10 +119,10 @@ team defensive columns, examples of missing long-kick/PAT events,
 and whether play-by-play has been downloaded. It creates **no
 new training data or production models**.
 
-**Modeling sequence:** verify pregame kicker candidate coverage,
-clarify any missed/blocked extra-point penalties; build a leakage-safe kicker pregame dataset
-and 2023–2025 walk-forward benchmark; choose a kicker architecture
-based on results; repeat for team-based D/ST using fully verified
-historical targets; integrate successful models into the weekly
-runner and prospective tracker. The existing QB/RB/WR/TE and
+**Modeling sequence:** build and validate the leakage-safe
+Kicker v1 candidate dataset and 2023–2025 walk-forward benchmark;
+select a Kicker architecture based on the results; separately
+validate team-based D/ST labels with the missing play-level
+statistics; integrate successful models into the weekly runner
+and prospective tracker. The existing QB/RB/WR/TE and
 RB/WR-only FLEX models are unaffected.
