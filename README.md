@@ -744,10 +744,11 @@ field-goal distances and miss penalties, D/ST tackles for loss,
 three-and-outs, returns, and both points-allowed and
 yards-allowed bonuses/penalties.
 
-Three values are not visible in the screenshots and are **not
-guessed**: any penalty for missed field goals from 50+ yards;
+The user confirmed that three **unlisted scoring categories
+carry zero points**: missed field goals from 50+ yards;
 D/ST points allowed from 21–27; and D/ST yards allowed
-from 300–399. Missing/blocked PAT rules are also not shown.
+from 300–399. Any missed/blocked PAT penalty is not shown
+and remains unconfirmed.
 
 Run the source-coverage audit and offline scoring tests:
 
@@ -757,7 +758,8 @@ py -m unittest discover -s tests -v
 ```
 
 The audit checks the real local nflverse distance-bucket
-kicking fields, aggregated defensive team data, and the
+kicking fields, the kicker pregame depth-chart candidate
+population, aggregated defensive team data, and the
 absence/presence of any downloaded play-by-play. Do not
 train a Kicker or D/ST model until we can reconstruct
 the league's actual scoring without misleading labels.
