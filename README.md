@@ -174,7 +174,8 @@ That command:
 7. loads the saved QB v2 model bundle and generates the earliest upcoming week's QB rankings;
 8. loads the saved RB v2 model bundle and generates the earliest upcoming week's RB rankings;
 9. loads the saved WR v2 model bundle and generates the earliest upcoming week's WR rankings;
-10. loads the saved TE v2 model bundle and generates the earliest upcoming week's TE rankings.
+10. loads the saved TE v2 model bundle and generates the earliest upcoming week's TE rankings;
+11. saves immutable, timestamped predictions for every candidate whose game has not kicked off.
 
 The main weekly outputs are:
 
@@ -677,6 +678,93 @@ Because the uncertainty calibration is stored inside the saved model bundles, ex
 
 ```cmd
 py run_weekly.py --retrain
+```
+
+## Prospective Weekly Performance Tracker
+
+GridironIQ now records **genuine prekickoff forecasts**. The final step
+of `py run_weekly.py` snapshots the four positions' **all-future
+candidate files** (not only the visible top-ranked players, which would
+omit backup QBs and inflate all-candidate metrics).
+
+A snapshot contains every candidate's original projection, role
+probability and role definition, 80% historical interval, baseline
+last-three fantasy average, game and model provenance, UTC capture
+time, and the scheduled UTC kickoff. The snapshot script:
+
+- accepts only games whose recorded kickoff is still in the future
+  and whose schedule has no final score;
+- requires explicit `gameday` and `gametime` values in `games.csv`;
+  the nflverse schedule's `gametime` is treated as **Eastern local
+  time** and converted to UTC with the `tzdata` package on Windows;
+- refuses to mislabel stale prediction CSVs as newly generated
+  forecasts (default maximum age 60 minutes);
+- uses exclusive file creation in `data/snapshots/`, preserving
+  previous snapshots rather than replacing them.
+
+This is automatic in the normal weekly workflow. For a one-off
+snapshot immediately after running all four position predictors:
+
+```cmd
+py src\evaluation\snapshot_predictions.py
+```
+
+To run the weekly pipeline without creating a snapshot (for example
+for a local development experiment), use:
+
+```cmd
+py run_weekly.py --no-snapshot
+```
+
+**After games finish**, refresh the nflverse results and processed
+tables (the normal weekly pipeline does both), then run:
+
+```cmd
+py src\evaluation\evaluate_predictions.py
+```
+
+The evaluator independently rechecks prekickoff timestamps against
+the refreshed schedule. It selects the **latest verified prekickoff
+prediction per player/game** by default, never retrains historical
+forecasts or backfills predictions for games that have already started.
+The alternative `--selection earliest` evaluates each player's
+earliest valid saved forecast.
+
+Only games with a final schedule score **and downloaded team boxscore**
+are evaluated; a completed game with no player stat row is scored as
+zero using GridironIQ's existing custom fantasy scoring. Missing team
+boxscores are deferred, not silently converted to zeros. If a player's
+offensive snap share cannot be verified, their fantasy error can still
+be scored, but their role outcome is omitted from role metrics.
+
+Reports in `data/processed/evaluation/`:
+
+```text
+prediction_results.csv
+weekly_summary.csv
+cumulative_summary.csv
+role_calibration.csv
+```
+
+Metrics include MAE, RMSE, mean signed error, **projected-starter
+MAE**, last-three baseline error on the *same eligible rows*, role
+Brier score and 50%-threshold accuracy, genuinely prospective
+80%-interval coverage, and correct ordering of projected-starter
+pairs. Starter groups are the pregame **QB top 12, RB/WR top 24 and
+TE top 12**. Pairwise ordering is a start/sit *ranking proxy*,
+not a record of the user's real fantasy lineup decisions. Pairs
+are compared only within the same season, week and position.
+
+The snapshots are **ignored by Git**. Keep or back up
+`data/snapshots/`: if that directory is lost, its pregame evidence
+cannot be reconstructed honestly from refreshed predictions.
+Historical walk-forward errors and new prospective errors should
+be reported separately, with partial-week sample sizes shown.
+
+Run the offline safety tests from the repository root:
+
+```cmd
+py -m unittest discover -s tests -v
 ```
 
 ## Long-Term Roadmap
