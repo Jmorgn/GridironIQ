@@ -111,7 +111,9 @@ def _load_position(position: str) -> pd.DataFrame:
             f"Duplicate {position} player IDs in the same game week."
         )
 
-    return df
+    # Saved RB/WR rankings already have a position-local "rank".
+    # The combined FLEX output gets its own fresh global rank.
+    return df.drop(columns=["rank"], errors="ignore")
 
 
 def build_flex_rankings(
