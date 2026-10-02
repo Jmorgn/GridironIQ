@@ -137,6 +137,45 @@ def summarize_kickers(path: Path, columns: set[str]) -> None:
         )
 
 
+def inspect_kicker_depth_chart(year: int) -> None:
+    """Check whether K/PK can be enumerated before games, including 2026."""
+    path = RAW / f"depth_charts_{year}.csv"
+    print(f"\\n{path.relative_to(ROOT)} kicker candidate availability")
+    if not path.exists():
+        print("  NOT DOWNLOADED")
+        return
+    frame = pd.read_csv(path, low_memory=False)
+    position_field = (
+        "pos_abb" if "pos_abb" in frame.columns
+        else "position" if "position" in frame.columns
+        else None
+    )
+    if position_field is None:
+        print("  No position identifier in depth charts.")
+        print(f"  Available columns: {sorted(frame.columns)}")
+        return
+    pos = frame[position_field].astype(str)
+    print(
+        f"  Source position field: {position_field}; "
+        f"code counts: {pos.value_counts().head(25).to_dict()}"
+    )
+    kicking = frame[
+        pos.str.upper().isin(["K", "PK", "KICKER"])
+    ].copy()
+    print(f"  K/PK depth-chart rows: {len(kicking):,}")
+    if not kicking.empty:
+        for field in [
+            "gsis_id", "season", "week", "team",
+            "club_code", "dt", "pos_rank", "depth_team",
+        ]:
+            if field in kicking.columns:
+                print(
+                    f"  {field}: "
+                    f"{kicking[field].dropna().nunique():,} unique "
+                    f"| example={str(kicking[field].dropna().iloc[0]) if kicking[field].notna().any() else 'None'}"
+                )
+
+
 def main() -> None:
     print("GRIDIRONIQ KICKER / D-ST SOURCE AUDIT")
     print("=" * 80)
@@ -147,6 +186,9 @@ def main() -> None:
         columns = inspect_schema(path, KICKING_FIELDS)
         if year in (2025, 2026):
             summarize_kickers(path, columns)
+
+    for year in (2021, 2024, 2025, 2026):
+        inspect_kicker_depth_chart(year)
 
     for year in (2025, 2026):
         inspect_schema(
@@ -173,8 +215,8 @@ def main() -> None:
         + (", ".join(pbp_sources) if pbp_sources else "NONE")
     )
     print(
-        "K: Verify distance-specific miss and blocked-PAT scoring "
-        "against your Yahoo league before exact model labels."
+        "K: All distance-specific FG scores are confirmed; "
+        "verify any missed/blocked PAT penalty before final labels."
     )
     print(
         "D/ST: Check three-and-outs, special-teams return TDs, "
@@ -191,9 +233,13 @@ def main() -> None:
         "definition against the league scoreboard."
     )
     print(
-        "UNCONFIRMED SCREENSHOT RULES: missed 50+ yard FG; "
-        "D/ST points allowed 21-27; D/ST yards allowed 300-399. "
-        "Never substitute zero or a Yahoo default without checking."
+        "CONFIRMED ABSENT SCORING CATEGORIES (0 points): "
+        "missed FG 50+ yards, D/ST points allowed 21-27, "
+        "D/ST yards allowed 300-399."
+    )
+    print(
+        "Missed and blocked PAT penalties remain unconfirmed; "
+        "only the made-PAT award was shown."
     )
     print(
         "\nNo training tables, saved model bundles, "
