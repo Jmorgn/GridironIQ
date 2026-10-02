@@ -747,8 +747,8 @@ yards-allowed bonuses/penalties.
 The user confirmed that three **unlisted scoring categories
 carry zero points**: missed field goals from 50+ yards;
 D/ST points allowed from 21–27; and D/ST yards allowed
-from 300–399. Any missed/blocked PAT penalty is not shown
-and remains unconfirmed.
+from 300–399. Made PATs earn one point, and the user also
+confirmed missed and blocked PATs earn zero points.
 
 Run the source-coverage audit and offline scoring tests:
 
@@ -762,7 +762,7 @@ and a historical K/PK depth-chart candidate source. It also confirmed
 that several D/ST event statistics need further sourcing, including
 three-and-outs and returned extra points.
 
-### Kicker v1 — pregame dataset and provisional benchmark
+### Kicker v1 — pregame dataset and walk-forward benchmark
 
 Kicker v1 now has a candidate builder and an experimental walk-forward
 benchmark. The 2021–2024 candidate pool uses schedule-filtered weekly
@@ -771,7 +771,8 @@ so we do not claim those chart entries are independently verified
 pregame. For 2025–2026, chart timestamps must fall within the
 five days before each game and **before its actual kickoff**.
 
-The dataset joins confirmed distance-specific FG and made-PAT scores
+The dataset joins full league Kicker fantasy scores
+(distance-specific FGs, made PATs, and zero-point unlisted misses)
 to historical kickers, including zero-attempt candidates only when
 a completed-game team boxscore exists. Prior player trends, team
 kicking and scoring trends, opponent FG/PAT opportunities, depth
@@ -780,11 +781,12 @@ using the current game's outcomes as features. Historical
 game-temperature/wind fields are excluded from benchmarking
 until the data can be verified as pregame forecasts.
 
-**Important:** missed and blocked PAT penalties are still
-unconfirmed. K v1 models only `actual_confirmed_component_points`
-and explicitly counts records with missed/blocked PATs. This is
-a **provisional research target**, not a certified Yahoo fantasy
-point total. No K production model is selected or deployed.
+K v1's target is `actual_fantasy_points`, calculated using
+all confirmed Kicker categories, including zero-point missed/
+blocked PATs and 50+ yard FG misses. The dataset still counts
+missed/blocked PAT events for auditing. **No K production model
+is selected or deployed** until historical candidate coverage
+and 2023–2025 validation have been reviewed.
 
 Run:
 
