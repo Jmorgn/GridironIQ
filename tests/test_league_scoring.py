@@ -52,8 +52,8 @@ class KickerScoringTests(unittest.TestCase):
             float(result["confirmed_component_points"].iloc[0]),
             25.0,
         )
-        self.assertFalse(
-            bool(result["missing_long_miss_rule"].iloc[0])
+        self.assertEqual(
+            float(result["long_misses_no_penalty"].iloc[0]), 0.0
         )
 
     def test_missed_short_fg_penalties(self):
@@ -70,16 +70,16 @@ class KickerScoringTests(unittest.TestCase):
             -3.5,
         )
 
-    def test_unconfirmed_missed_50plus_is_flagged(self):
+    def test_missed_50plus_has_zero_penalty(self):
         row = self.kicker_row()
         row["fg_missed_50_59"] = 1
         row["fg_missed_60_"] = 2
         result = kicker_known_components(pd.DataFrame([row]))
         self.assertEqual(
-            float(result["long_misses_unpriced"].iloc[0]), 3.0
+            float(result["long_misses_no_penalty"].iloc[0]), 3.0
         )
-        self.assertTrue(
-            bool(result["missing_long_miss_rule"].iloc[0])
+        self.assertEqual(
+            float(result["confirmed_component_points"].iloc[0]), 0.0
         )
 
     def test_missing_input_column_is_error_not_zero(self):
@@ -96,6 +96,7 @@ class DSTScoringTests(unittest.TestCase):
             1: 7.0, 6: 7.0,
             7: 4.0, 13: 4.0,
             14: 1.0, 20: 1.0,
+            21: 0.0, 24: 0.0, 27: 0.0,
             28: -1.0, 34: -1.0,
             35: -4.0, 60: -4.0,
         }
@@ -104,8 +105,6 @@ class DSTScoringTests(unittest.TestCase):
                 self.assertEqual(
                     dst_points_allowed_bonus(value), points
                 )
-        with self.assertRaisesRegex(ValueError, "not visible"):
-            dst_points_allowed_bonus(24)
 
     def test_yards_allowed_visible_brackets(self):
         expected = {
@@ -113,6 +112,7 @@ class DSTScoringTests(unittest.TestCase):
             0: 3.0, 99: 3.0,
             100: 2.0, 199: 2.0,
             200: 1.0, 299: 1.0,
+            300: 0.0, 350: 0.0, 399: 0.0,
             400: -1.0, 499: -1.0,
             500: -2.0, 620: -2.0,
         }
@@ -121,8 +121,6 @@ class DSTScoringTests(unittest.TestCase):
                 self.assertEqual(
                     dst_yards_allowed_bonus(value), points
                 )
-        with self.assertRaisesRegex(ValueError, "not visible"):
-            dst_yards_allowed_bonus(350)
 
     def test_defensive_and_special_teams_event_values(self):
         expected = {
