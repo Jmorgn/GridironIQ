@@ -175,7 +175,8 @@ That command:
 8. loads the saved RB v2 model bundle and generates the earliest upcoming week's RB rankings;
 9. loads the saved WR v2 model bundle and generates the earliest upcoming week's WR rankings;
 10. loads the saved TE v2 model bundle and generates the earliest upcoming week's TE rankings;
-11. saves immutable, timestamped predictions for every candidate whose game has not kicked off.
+11. merges RB and WR rankings into the RB/WR-only FLEX pool;
+12. saves immutable, timestamped predictions for every candidate whose game has not kicked off.
 
 The main weekly outputs are:
 
@@ -184,6 +185,7 @@ data/processed/qb_v2_weekly_rankings.csv
 data/processed/rb_v2_weekly_rankings.csv
 data/processed/wr_v2_weekly_rankings.csv
 data/processed/te_v2_weekly_rankings.csv
+data/processed/flex_weekly_rankings.csv
 ```
 
 All future candidates and role probabilities are also saved to:
@@ -678,6 +680,58 @@ Because the uncertainty calibration is stored inside the saved model bundles, ex
 
 ```cmd
 py run_weekly.py --retrain
+```
+
+## FLEX Rankings (RBs and WRs Only)
+
+This league's FLEX slot accepts **RB and WR only**; **TE is excluded**.
+There is **no separate FLEX machine-learning model**. The weekly FLEX
+rankings combine the official RB v2 and WR v2 fantasy projections, sort
+all eligible players by projected fantasy points, and retain each
+player's original position rank, role probability, conditional
+fantasy points and historical 80% prediction interval.
+
+`py run_weekly.py` now includes FLEX as step **11/12**, before the
+immutable prekickoff snapshot at step **12/12**. To generate the
+full RB/WR FLEX pool from already-generated weekly rankings without
+rerunning the weekly pipeline:
+
+```cmd
+py src\models\rank_flex.py
+```
+
+Output:
+
+```text
+data/processed/flex_weekly_rankings.csv
+```
+
+To remove players already in **your** starting RB and WR slots,
+repeat `--exclude` for each locked starter:
+
+```cmd
+py src\models\rank_flex.py --exclude "Jahmyr Gibbs" --exclude "CeeDee Lamb"
+```
+
+For duplicate/ambiguous names, use `--exclude-id` with the player's
+exact nflverse player ID. Custom exclusions write to
+`data/processed/flex_available_rankings.csv` so your personal lineup
+does not overwrite the complete weekly FLEX pool. The script rejects
+unknown names, duplicate player/game entries, invalid probabilities
+and RB/WR weekly files from different weeks.
+
+This is a **league-wide eligibility ranking** unless you explicitly
+exclude locked starters; it cannot assume which players are on your
+fantasy roster. The FLEX ranking does not change QB/RB/WR/TE model
+bundles, does not train on FLEX labels, and does not include TEs.
+Existing RB/WR pregame snapshots are sufficient to audit the source
+projections; actual user FLEX lineup decisions require a separate
+saved lineup log.
+
+Run the offline tests:
+
+```cmd
+py -m unittest discover -s tests -v
 ```
 
 ## Prospective Weekly Performance Tracker
