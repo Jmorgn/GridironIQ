@@ -31,7 +31,7 @@ class KickerScoringTests(unittest.TestCase):
             column: 0 for column in [
                 *FG_MADE_POINTS,
                 *FG_MISSED_POINTS,
-                "pat_made",
+                "pat_made", "pat_missed", "pat_blocked",
             ]
         }
         return row
@@ -81,6 +81,25 @@ class KickerScoringTests(unittest.TestCase):
         self.assertEqual(
             float(result["confirmed_component_points"].iloc[0]), 0.0
         )
+
+    def test_missed_and_blocked_extra_points_score_zero(self):
+        row = self.kicker_row()
+        row["pat_missed"] = 2
+        row["pat_blocked"] = 1
+        result = kicker_known_components(pd.DataFrame([row]))
+        self.assertEqual(
+            float(result["fantasy_points"].iloc[0]), 0.0
+        )
+        self.assertEqual(
+            float(result["confirmed_component_points"].iloc[0]),
+            float(result["fantasy_points"].iloc[0]),
+        )
+
+    def test_missing_pat_source_column_is_error_not_zero(self):
+        row = self.kicker_row()
+        del row["pat_blocked"]
+        with self.assertRaisesRegex(ValueError, "missing nflverse"):
+            kicker_known_components(pd.DataFrame([row]))
 
     def test_missing_input_column_is_error_not_zero(self):
         row = self.kicker_row()
