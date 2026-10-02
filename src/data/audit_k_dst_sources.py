@@ -126,9 +126,8 @@ def summarize_kickers(path: Path, columns: set[str]) -> None:
     expected = set([*FG_MADE_POINTS, *FG_MISSED_POINTS, "pat_made"])
     if expected.issubset(columns):
         print(
-            "  All confirmed FG/PAT-made component columns "
-            "are present; verify long-miss/PAT rules "
-            "before calling the full score exact."
+            "  All league Kicker scoring columns are present; "
+            "missed/blocked PATs and 50+ FG misses score zero."
         )
     else:
         print(
@@ -215,8 +214,8 @@ def main() -> None:
         + (", ".join(pbp_sources) if pbp_sources else "NONE")
     )
     print(
-        "K: All distance-specific FG scores are confirmed; "
-        "verify any missed/blocked PAT penalty before final labels."
+        "K: Full field-goal and PAT scoring confirmed; "
+        "ready to verify pregame candidate coverage and model labels."
     )
     print(
         "D/ST: Check three-and-outs, special-teams return TDs, "
@@ -238,8 +237,7 @@ def main() -> None:
         "D/ST yards allowed 300-399."
     )
     print(
-        "Missed and blocked PAT penalties remain unconfirmed; "
-        "only the made-PAT award was shown."
+        "CONFIRMED: made PAT +1, missed/blocked PAT 0."
     )
     print(
         "\nNo training tables, saved model bundles, "
