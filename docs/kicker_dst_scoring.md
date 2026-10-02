@@ -1,0 +1,120 @@
+# Kicker and D/ST Scoring — GridironIQ
+
+Source: the user's Yahoo league-setting screenshots supplied on
+2026-10-02. This document records the **visible scoring rules**;
+unreadable/absent rows are left unresolved, not assigned assumed
+Yahoo default scores. Python constants and validated helper functions:
+[`src/scoring/league_rules.py`](../src/scoring/league_rules.py).
+
+## Kicker (K)
+
+| Event | Points |
+| --- | ---: |
+| Field goal made, 0–19 yards | 3 |
+| Field goal made, 20–29 yards | 3 |
+| Field goal made, 30–39 yards | 3 |
+| Field goal made, 40–49 yards | 4 |
+| Field goal made, 50+ yards | 5 |
+| Field goal missed, 0–19 yards | -1 |
+| Field goal missed, 20–29 yards | -1 |
+| Field goal missed, 30–39 yards | -1 |
+| Field goal missed, 40–49 yards | -0.5 |
+| Point-after attempt made | 1 |
+
+**Not confirmed by the provided screenshots:** any penalty for
+a missed field goal from 50+ yards; any penalty for a missed
+or blocked extra point. Do not invent these values.
+
+Distance-bucket stats expected in local nflverse player-week files:
+`fg_made_0_19`, `fg_made_20_29`, `fg_made_30_39`,
+`fg_made_40_49`, `fg_made_50_59`, `fg_made_60_`,
+the corresponding `fg_missed_*` columns, and `pat_made`.
+The helper `kicker_known_components()` deliberately returns
+*confirmed component points*, not a guaranteed exact Yahoo result.
+It flags any observed missed field goals from 50+ yards as unpriced.
+
+## Defense / Special Teams (D/ST)
+
+| Event | Points |
+| --- | ---: |
+| Sack | 0.5 |
+| Interception | 2 |
+| Fumble recovery | 2 |
+| Defensive or special-teams touchdown | 6 |
+| Safety | 2 |
+| Blocked kick | 2 |
+| Kickoff-return touchdown | 6 |
+| Punt-return touchdown | 6 |
+| Tackle for loss | 0.5 |
+| Three-and-out forced | 1 |
+| Extra point returned | 2 |
+
+A touchdown event must be scored **once** in its proper category.
+The separate return-TD lines describe eligible special-teams events,
+not a second touchdown bonus.
+
+### Points allowed
+
+| Opponent points allowed | D/ST bonus |
+| --- | ---: |
+| 0 | 10 |
+| 1–6 | 7 |
+| 7–13 | 4 |
+| 14–20 | 1 |
+| 21–27 | **Unconfirmed — obscured by app overlay** |
+| 28–34 | -1 |
+| 35+ | -4 |
+
+### Defensive yards allowed
+
+| Total yards allowed | D/ST bonus |
+| --- | ---: |
+| Negative | 4 |
+| 0–99 | 3 |
+| 100–199 | 2 |
+| 200–299 | 1 |
+| 300–399 | **Unconfirmed — obscured by app overlay** |
+| 400–499 | -1 |
+| 500+ | -2 |
+
+The shared scoring helper raises a `ValueError` for an
+unconfirmed bracket instead of returning an assumed score.
+
+## Historical label quality: validate before modeling
+
+Our existing downloader obtains nflverse player-week, team-week,
+schedule, snap, depth-chart and injury files. It **does not**
+currently obtain play-by-play. Aggregated NFL team statistics
+may include some defensive statistics, but that does not establish
+that they contain all categories in this custom league.
+
+A D/ST training target must account for **three-and-outs**,
+**tackles for loss**, **blocked kicks**, **return touchdowns** and
+**returned extra points**, in addition to takeaways and basic
+points/yards allowed. Some require play-level attribution or a
+verified defensive team-stat source. In particular, Yahoo D/ST
+points-allowed scoring must be verified against its definition
+rather than blindly using an opponent's final schedule score
+(which can include defensive/special-teams points by that opponent).
+Similarly, net yards allowed must agree with the fantasy platform
+and team-stat definitions.
+
+Run the local schema audit:
+
+```cmd
+py src\data\audit_k_dst_sources.py
+py -m unittest discover -s tests -v
+```
+
+The audit checks selected 2021–2026 kicking fields, current
+team defensive columns, examples of missing long-kick/PAT events,
+and whether play-by-play has been downloaded. It creates **no
+new training data or production models**.
+
+**Modeling sequence:** verify source/label coverage; finish the
+remaining rule values; build a leakage-safe kicker pregame dataset
+and 2023–2025 walk-forward benchmark; choose a kicker architecture
+based on results; repeat for team-based D/ST using fully verified
+historical targets; integrate successful models into the weekly
+runner and prospective tracker. The existing QB/RB/WR/TE and
+RB/WR-only FLEX models are unaffected.
