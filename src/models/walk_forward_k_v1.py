@@ -1,9 +1,9 @@
 """Leakage-aware GridironIQ Kicker v1 walk-forward benchmark.
 
-Only screenshot-confirmed scoring components are modeled: made FG by
-distance, short-FG misses, and made PATs. Missed/blocked PAT penalties
-are not yet confirmed. Scores are PROVISIONAL research targets and
-must not be called official Yahoo fantasy projections.
+Targets use the user's complete league Kicker scoring:
+distance-based made FGs, short-FG miss penalties and made PATs.
+Missed/blocked PATs and 50+ FG misses are explicitly zero points.
+This benchmark evaluates a research model, not deployed projections.
 
 The fixed pregame top-12 cohort uses a simple player-last-3/team-last-3
 ranking, NOT the model being evaluated. Train through the preceding
@@ -40,7 +40,7 @@ OUTPUT_FILE = (
     ROOT / "data" / "processed" / "k_v1_walk_forward_results.csv"
 )
 
-TARGET = "actual_confirmed_component_points"
+TARGET = "actual_fantasy_points"
 FOLDS = (
     (2021, 2022, 2023),
     (2021, 2023, 2024),
@@ -208,8 +208,8 @@ def metrics(
         "fixed_top12_mae": subset_mae(
             test, pred, fixed_top12
         ),
-        "unconfirmed_pat_event_rows": int(
-            test["has_unconfirmed_pat_event"].eq(1).sum()
+        "pat_miss_or_block_rows": int(
+            test["has_pat_miss_or_block"].eq(1).sum()
         ),
     }
 
@@ -269,7 +269,7 @@ def main() -> None:
             *FEATURES, "season", "week",
             "game_completed", TARGET,
             "listed_k1", "actual_active_kicker",
-            "has_unconfirmed_pat_event",
+            "has_pat_miss_or_block",
         ] if c not in data.columns
     ]
     if missing:
@@ -291,7 +291,7 @@ def main() -> None:
         if field.startswith("actual_")
         or "confirmed_component_points" in field
         or field in (
-            "has_unconfirmed_pat_event",
+            "has_pat_miss_or_block",
             "had_stat_row",
             "game_completed",
             "chart_pregame_verified",
@@ -306,12 +306,11 @@ def main() -> None:
     print("GRIDIRONIQ K V1 WALK-FORWARD RESEARCH")
     print("=" * 88)
     print(
-        "Target: screenshot-confirmed K scoring components "
-        "(NOT finalized Yahoo fantasy points)."
+        "Target: full custom league Kicker fantasy points."
     )
     print(
-        "Missed/blocked PAT penalty unconfirmed; report "
-        "affected test-row count in every fold."
+        "Made PAT=+1; missed/blocked PAT=0; "
+        "missed FG 50+ yards=0."
     )
     print("2026 excluded from model selection.")
     print(f"Historical pregame candidates: {len(history):,}")
@@ -406,13 +405,14 @@ def main() -> None:
         )
     )
     print(
-        f"\nRows with missed or blocked PAT outcomes: "
-        f"{history['has_unconfirmed_pat_event'].eq(1).sum():,}"
+        f"\nRows with missed or blocked PATs (0 penalty): "
+        f"{history['has_pat_miss_or_block'].eq(1).sum():,}"
     )
     print(f"Saved research results: {OUTPUT_FILE}")
     print(
-        "Do NOT deploy from these results until exact PAT "
-        "scoring and label coverage are verified."
+        "Research results only: review candidate coverage, "
+        "walk-forward errors and pregame feature availability "
+        "before selecting a production Kicker architecture."
     )
 
 
