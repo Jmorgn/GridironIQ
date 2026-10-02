@@ -1,8 +1,9 @@
 """GridironIQ league-specific Kicker and D/ST scoring from screenshots.
 
-Only visibly confirmed values are encoded. None means the screenshot did
-not establish that score. Do NOT replace None with Yahoo defaults or zero
-while creating targets or benchmarking models.
+Scored categories were read from league screenshots. The user confirmed
+that omitted long-FG misses, 21-27 points allowed and 300-399 yards
+allowed have no configured scoring category and therefore score zero.
+Missed/blocked extra-point penalties have not been confirmed separately.
 
 Screenshots: IMG_5534.png through IMG_5537.png, provided 2026-10-02.
 """
@@ -23,14 +24,14 @@ FG_MADE_POINTS: Mapping[str, float] = {
     "fg_made_50_59": 5.0,
     "fg_made_60_": 5.0,
 }
-FG_MISSED_POINTS: Mapping[str, float | None] = {
+FG_MISSED_POINTS: Mapping[str, float] = {
     "fg_missed_0_19": -1.0,
     "fg_missed_20_29": -1.0,
     "fg_missed_30_39": -1.0,
     "fg_missed_40_49": -0.5,
-    # Not shown in supplied screenshots. Do not infer a penalty.
-    "fg_missed_50_59": None,
-    "fg_missed_60_": None,
+    # Confirmed: no 50+ miss-penalty category in this league.
+    "fg_missed_50_59": 0.0,
+    "fg_missed_60_": 0.0,
 }
 PAT_MADE_POINTS = 1.0
 # Screenshot does not state a missed/blocked PAT penalty.
@@ -51,14 +52,15 @@ DST_EVENT_POINTS: Mapping[str, float] = {
     "extra_point_returned": 2.0,
 }
 
-# Exclusive integer brackets: (minimum, maximum, points).
-# None marks brackets hidden beneath the app's navigation overlay.
+# Inclusive integer brackets: (minimum, maximum, points).
+# The user confirmed the two unlisted 21-27 and 300-399
+# categories award zero points.
 DST_POINTS_ALLOWED = (
     (0, 0, 10.0),
     (1, 6, 7.0),
     (7, 13, 4.0),
     (14, 20, 1.0),
-    (21, 27, None),  # Not visible.
+    (21, 27, 0.0),
     (28, 34, -1.0),
     (35, None, -4.0),
 )
@@ -67,7 +69,7 @@ DST_YARDS_ALLOWED = (
     (0, 99, 3.0),
     (100, 199, 2.0),
     (200, 299, 1.0),
-    (300, 399, None),  # Not visible.
+    (300, 399, 0.0),
     (400, 499, -1.0),
     (500, None, -2.0),
 )
@@ -112,10 +114,10 @@ def kicker_known_components(frame: pd.DataFrame) -> pd.DataFrame:
     """Calculate only kicker scoring components confirmed by screenshots.
 
     Never fill missing NFL source columns as zero. The returned
-    long_misses_unpriced column marks rows which cannot receive an
-    exact score without clarification on 50+ yard misses. Other
-    unlisted categories (e.g., missed PATs) are NOT silently assumed
-    to be worth zero; this function only scores the visible rules.
+    long_misses_no_penalty column records long missed FG attempts that
+    correctly carry zero penalty. Missed and blocked PAT penalties
+    remain unconfirmed, so this function reports the scored FG and
+    made-PAT components rather than claiming other categories are exact.
     """
     required = [
         *FG_MADE_POINTS, *FG_MISSED_POINTS, "pat_made",
@@ -144,15 +146,13 @@ def kicker_known_components(frame: pd.DataFrame) -> pd.DataFrame:
     for column, weight in FG_MADE_POINTS.items():
         points += values[column] * weight
     for column, weight in FG_MISSED_POINTS.items():
-        if weight is not None:
-            points += values[column] * weight
+        points += values[column] * weight
 
-    unpriced = (
+    long_misses_no_penalty = (
         values["fg_missed_50_59"]
         + values["fg_missed_60_"]
     )
     return pd.DataFrame({
         "confirmed_component_points": points,
-        "long_misses_unpriced": unpriced,
-        "missing_long_miss_rule": unpriced.gt(0),
+        "long_misses_no_penalty": long_misses_no_penalty,
     }, index=frame.index)
