@@ -371,6 +371,13 @@ def add_actuals(
 
 
 def add_player_history(frame: pd.DataFrame) -> pd.DataFrame:
+    # A midweek transfer could otherwise shift one same-week game's
+    # realized points into another same-week candidate row.
+    if frame.duplicated(["player_id", "season", "week"]).any():
+        raise RuntimeError(
+            "Player appears on multiple K depth charts in one week; "
+            "resolve the transfer before calculating player history."
+        )
     out = frame.sort_values(
         ["player_id", "season", "week"]
     ).copy()
@@ -648,6 +655,22 @@ def main() -> None:
         f"{coverage_rate:.1%} "
         f"({covered['_merge'].eq('both').sum():,}"
         f"/{len(covered):,})"
+    )
+    # Historical chart publication timing is unverifiable in
+    # 2021-24; show coverage by year before interpreting errors.
+    yearly_coverage = covered.groupby("season")["_merge"].agg(
+        total="size",
+        matched=lambda values: values.eq("both").sum(),
+    )
+    yearly_coverage["rate"] = (
+        yearly_coverage["matched"]
+        / yearly_coverage["total"]
+    )
+    print("Historical active kicker coverage by season:")
+    print(
+        yearly_coverage.to_string(
+            float_format=lambda value: f"{value:.1%}"
+        )
     )
     if coverage_rate < 0.90:
         raise RuntimeError(
