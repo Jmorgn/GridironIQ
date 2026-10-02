@@ -96,6 +96,16 @@ def read_snapshots(selection: str) -> pd.DataFrame:
             "Duplicate candidates recorded at the same snapshot time."
         )
 
+    # Retain the originally advertised kickoff for provenance, but use
+    # the refreshed authoritative schedule for final-game validation.
+    # Dropping the original duplicate columns prevents _x/_y suffixes.
+    snapshots["captured_schedule_kickoff_utc"] = (
+        snapshots["kickoff_utc"]
+    )
+    snapshots = snapshots.drop(
+        columns=["kickoff_utc", "game_id"],
+        errors="ignore",
+    )
     schedule = load_schedule()
     snapshots = snapshots.merge(
         schedule,
@@ -394,28 +404,35 @@ def attach_actuals(
 
 
 def pairwise_top_starters(group: pd.DataFrame) -> tuple[int, float]:
-    """Pairwise ordering among completed projected starters, not real starts."""
+    """Ordering within completed top-K players from the SAME week only.
+
+    Pairwise ranking is a lineup-quality proxy, not recorded user starts.
+    Cumulative results pool individual week pairs without comparing
+    players across different matchups or weeks.
+    """
+    correct = 0
+    count = 0
     subset = group[
         group["starter_cohort"].eq(1)
     ].copy()
-    preds = subset["projection"].to_numpy(dtype=float)
-    actual = subset["actual_fantasy_points"].to_numpy(dtype=float)
-    correct = 0
-    count = 0
-    for i in range(len(subset)):
-        for j in range(i + 1, len(subset)):
-            pred_diff = preds[i] - preds[j]
-            true_diff = actual[i] - actual[j]
-            if pred_diff == 0 or true_diff == 0:
-                continue
-            count += 1
-            correct += int(
-                (pred_diff > 0) == (true_diff > 0)
-            )
+    for _, week_frame in subset.groupby(["season", "week"]):
+        preds = week_frame["projection"].to_numpy(dtype=float)
+        actual = week_frame[
+            "actual_fantasy_points"
+        ].to_numpy(dtype=float)
+        for i in range(len(week_frame)):
+            for j in range(i + 1, len(week_frame)):
+                pred_diff = preds[i] - preds[j]
+                true_diff = actual[i] - actual[j]
+                if pred_diff == 0 or true_diff == 0:
+                    continue
+                count += 1
+                correct += int(
+                    (pred_diff > 0) == (true_diff > 0)
+                )
     return count, (
         correct / count if count else float("nan")
     )
-
 
 def metric_row(
     group: pd.DataFrame,
