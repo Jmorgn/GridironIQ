@@ -5,9 +5,9 @@ unavailable). 2025-26: use the latest K/PK snapshot timestamped within
 five days before each game's scheduled kickoff. Completed game/team
 boxscore is required before interpreting missing kicker stats as zero.
 
-Outcome is CONFIRMED COMPONENT POINTS (FG distance rules + made PAT).
-Missed/blocked PAT scoring has NOT been confirmed; this is a research
-target, NOT an official Yahoo fantasy score or production projection.
+Outcome is league Kicker fantasy points: distance-specific made/missed
+FG scoring plus made PATs; missed/blocked PATs and 50+ misses score zero.
+Historical benchmarks remain research until model/candidate validation.
 Features are prior-week rolling history and pregame game context.
 """
 
@@ -40,7 +40,7 @@ KEY = ["player_id", "season", "week", "team"]
 GAME_KEY = ["season", "week", "team"]
 
 PLAYER_METRICS = {
-    "actual_confirmed_component_points": "fp",
+    "actual_fantasy_points": "fp",
     "actual_fg_att": "fg_att",
     "actual_fg_made": "fg_made",
     "actual_pat_att": "pat_att",
@@ -53,7 +53,7 @@ PLAYER_METRICS = {
 }
 
 TEAM_METRICS = {
-    "team_kicker_component_points": "kicker_fp",
+    "team_kicker_fantasy_points": "kicker_fp",
     "team_fg_att": "fg_att",
     "team_fg_made": "fg_made",
     "team_pat_att": "pat_att",
@@ -261,8 +261,8 @@ def kicker_game_stats() -> pd.DataFrame:
         raise RuntimeError("No K rows in player weekly data.")
 
     scoring = kicker_known_components(players)
-    players["actual_confirmed_component_points"] = scoring[
-        "confirmed_component_points"
+    players["actual_fantasy_points"] = scoring[
+        "fantasy_points"
     ]
     numeric_fields = [
         "fg_att", "fg_made", "pat_att", "pat_made",
@@ -310,7 +310,7 @@ def kicker_game_stats() -> pd.DataFrame:
     )
 
     fields = [
-        "actual_confirmed_component_points",
+        "actual_fantasy_points",
         "actual_fg_att", "actual_fg_made",
         "actual_pat_att", "actual_pat_made",
         "actual_fg_40plus_made",
@@ -347,7 +347,7 @@ def add_actuals(
         & out["boxscore_available"].eq(1)
     )
     outcomes = [
-        "actual_confirmed_component_points",
+        "actual_fantasy_points",
         "actual_fg_att", "actual_fg_made",
         "actual_pat_att", "actual_pat_made",
         "actual_fg_40plus_made",
@@ -362,8 +362,8 @@ def add_actuals(
             scorable, name
         ].fillna(0.0)
         out.loc[~scorable, name] = np.nan
-    out["has_unconfirmed_pat_event"] = np.nan
-    out.loc[scorable, "has_unconfirmed_pat_event"] = (
+    out["has_pat_miss_or_block"] = np.nan
+    out.loc[scorable, "has_pat_miss_or_block"] = (
         out.loc[scorable, "actual_pat_missed"].gt(0)
         | out.loc[scorable, "actual_pat_blocked"].gt(0)
     ).astype(int)
@@ -467,10 +467,10 @@ def add_team_history(
 ) -> pd.DataFrame:
     kicker_totals = (
         actual.groupby(GAME_KEY, as_index=False)[
-            "actual_confirmed_component_points"
+            "actual_fantasy_points"
         ].sum().rename(columns={
-            "actual_confirmed_component_points":
-            "team_kicker_component_points",
+            "actual_fantasy_points":
+            "team_kicker_fantasy_points",
         })
     )
     history = schedule[GAME_KEY + [
@@ -485,9 +485,9 @@ def add_team_history(
     known = history["game_completed"].eq(1) & (
         history["team_fg_att"].notna()
     )
-    history.loc[known, "team_kicker_component_points"] = (
+    history.loc[known, "team_kicker_fantasy_points"] = (
         history.loc[
-            known, "team_kicker_component_points"
+            known, "team_kicker_fantasy_points"
         ].fillna(0)
     )
     for source, short in TEAM_METRICS.items():
@@ -611,8 +611,8 @@ def main() -> None:
     print("GRIDIRONIQ K V1 PRE-GAME CANDIDATE BUILDER")
     print("=" * 78)
     print(
-        "Target: screenshot-confirmed FG/PAT-made scoring components. "
-        "Missed/blocked PAT rules remain unconfirmed."
+        "Target: full league Kicker fantasy points "
+        "(distance-based FGs; made PATs; unlisted misses score zero)."
     )
     schedule = schedule_context()
     candidates = depth_chart_candidates(schedule)
@@ -721,7 +721,7 @@ def main() -> None:
             for short in OPP_METRICS.values()
             for window in (3, 5)
         ],
-        "actual_confirmed_component_points",
+        "actual_fantasy_points",
         "actual_fg_att", "actual_fg_made",
         "actual_pat_att", "actual_pat_made",
         "actual_fg_40plus_made",
@@ -730,7 +730,7 @@ def main() -> None:
         "actual_pat_missed", "actual_pat_blocked",
         "actual_kick_attempts",
         "actual_active_kicker",
-        "has_unconfirmed_pat_event", "had_stat_row",
+        "has_pat_miss_or_block", "had_stat_row",
     ]
     absent = [field for field in fields if field not in selected]
     if absent:
@@ -742,7 +742,7 @@ def main() -> None:
     ).copy()
     if selected.duplicated(KEY).any():
         raise RuntimeError("Duplicate K candidate/game rows.")
-    if future["actual_confirmed_component_points"].notna().any():
+    if future["actual_fantasy_points"].notna().any():
         raise RuntimeError(
             "Future K candidates contain game outcome leakage."
         )
@@ -764,7 +764,7 @@ def main() -> None:
     )
     print(
         "Historical rows with missed/blocked PAT events: "
-        f"{historical['has_unconfirmed_pat_event'].eq(1).sum():,}"
+        f"{historical['has_pat_miss_or_block'].eq(1).sum():,}"
     )
     print(f"2026 future/unplayed candidates: {len(future):,}")
     print(
@@ -776,8 +776,9 @@ def main() -> None:
     print(f"Output columns: {len(fields)}")
     print(f"WRITE {OUTPUT_FILE}")
     print(
-        "RESEARCH DATASET ONLY: kicker target is confirmed scoring "
-        "components, not yet official Yahoo points."
+        "RESEARCH DATASET ONLY: scoring rules are finalized; "
+        "pregame candidate coverage and model accuracy "
+        "still require walk-forward validation."
     )
 
 
