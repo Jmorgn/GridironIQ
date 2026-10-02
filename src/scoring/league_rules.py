@@ -3,7 +3,7 @@
 Scored categories were read from league screenshots. The user confirmed
 that omitted long-FG misses, 21-27 points allowed and 300-399 yards
 allowed have no configured scoring category and therefore score zero.
-Missed/blocked extra-point penalties have not been confirmed separately.
+The user explicitly confirmed that missed and blocked extra points score zero.
 
 Screenshots: IMG_5534.png through IMG_5537.png, provided 2026-10-02.
 """
@@ -34,9 +34,9 @@ FG_MISSED_POINTS: Mapping[str, float] = {
     "fg_missed_60_": 0.0,
 }
 PAT_MADE_POINTS = 1.0
-# Screenshot does not state a missed/blocked PAT penalty.
-PAT_MISSED_POINTS: float | None = None
-PAT_BLOCKED_POINTS: float | None = None
+# Explicitly confirmed by the user: no missed/blocked PAT penalties.
+PAT_MISSED_POINTS = 0.0
+PAT_BLOCKED_POINTS = 0.0
 
 DST_EVENT_POINTS: Mapping[str, float] = {
     "sack": 0.5,
@@ -111,16 +111,17 @@ def dst_yards_allowed_bonus(yards: int) -> float:
 
 
 def kicker_known_components(frame: pd.DataFrame) -> pd.DataFrame:
-    """Calculate only kicker scoring components confirmed by screenshots.
+    """Calculate full league Kicker scoring from verified kick statistics.
 
-    Never fill missing NFL source columns as zero. The returned
-    long_misses_no_penalty column records long missed FG attempts that
-    correctly carry zero penalty. Missed and blocked PAT penalties
-    remain unconfirmed, so this function reports the scored FG and
-    made-PAT components rather than claiming other categories are exact.
+    This includes distance-based made/missed field goals, made PATs,
+    and zero penalties for missed/blocked PATs and 50+ yard misses.
+    Do not silently fill missing NFL source columns as zero.
+    The confirmed_component_points alias is preserved for compatibility;
+    use fantasy_points for new research/modeling.
     """
     required = [
-        *FG_MADE_POINTS, *FG_MISSED_POINTS, "pat_made",
+        *FG_MADE_POINTS, *FG_MISSED_POINTS,
+        "pat_made", "pat_missed", "pat_blocked",
     ]
     missing = [name for name in required if name not in frame.columns]
     if missing:
@@ -142,6 +143,8 @@ def kicker_known_components(frame: pd.DataFrame) -> pd.DataFrame:
 
     points = (
         values["pat_made"] * PAT_MADE_POINTS
+        + values["pat_missed"] * PAT_MISSED_POINTS
+        + values["pat_blocked"] * PAT_BLOCKED_POINTS
     ).astype(float)
     for column, weight in FG_MADE_POINTS.items():
         points += values[column] * weight
@@ -153,6 +156,7 @@ def kicker_known_components(frame: pd.DataFrame) -> pd.DataFrame:
         + values["fg_missed_60_"]
     )
     return pd.DataFrame({
+        "fantasy_points": points,
         "confirmed_component_points": points,
         "long_misses_no_penalty": long_misses_no_penalty,
     }, index=frame.index)
