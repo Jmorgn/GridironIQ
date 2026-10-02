@@ -1,9 +1,9 @@
 # Kicker and D/ST Scoring — GridironIQ
 
 Source: the user's Yahoo league-setting screenshots supplied on
-2026-10-02. This document records the **visible scoring rules**;
-unreadable/absent rows are left unresolved, not assigned assumed
-Yahoo default scores. Python constants and validated helper functions:
+2026-10-02, and their explicit clarification that three unlisted
+scoring categories are worth **zero**. No default scoring is inferred
+for other categories. Python constants and validated helper functions:
 [`src/scoring/league_rules.py`](../src/scoring/league_rules.py).
 
 ## Kicker (K)
@@ -19,11 +19,13 @@ Yahoo default scores. Python constants and validated helper functions:
 | Field goal missed, 20–29 yards | -1 |
 | Field goal missed, 30–39 yards | -1 |
 | Field goal missed, 40–49 yards | -0.5 |
+| Field goal missed, 50+ yards (unlisted) | 0 |
 | Point-after attempt made | 1 |
 
-**Not confirmed by the provided screenshots:** any penalty for
-a missed field goal from 50+ yards; any penalty for a missed
-or blocked extra point. Do not invent these values.
+**Not confirmed by the provided screenshots:** any penalty for a
+missed or blocked extra point. Do not invent these values.
+The user explicitly confirmed that 50+ missed field goals have
+no scoring category and carry zero penalty.
 
 Distance-bucket stats expected in local nflverse player-week files:
 `fg_made_0_19`, `fg_made_20_29`, `fg_made_30_39`,
@@ -31,7 +33,7 @@ Distance-bucket stats expected in local nflverse player-week files:
 the corresponding `fg_missed_*` columns, and `pat_made`.
 The helper `kicker_known_components()` deliberately returns
 *confirmed component points*, not a guaranteed exact Yahoo result.
-It flags any observed missed field goals from 50+ yards as unpriced.
+It records missed field goals from 50+ yards as zero-penalty attempts.
 
 ## Defense / Special Teams (D/ST)
 
@@ -61,7 +63,7 @@ not a second touchdown bonus.
 | 1–6 | 7 |
 | 7–13 | 4 |
 | 14–20 | 1 |
-| 21–27 | **Unconfirmed — obscured by app overlay** |
+| 21–27 (unlisted) | 0 |
 | 28–34 | -1 |
 | 35+ | -4 |
 
@@ -73,12 +75,12 @@ not a second touchdown bonus.
 | 0–99 | 3 |
 | 100–199 | 2 |
 | 200–299 | 1 |
-| 300–399 | **Unconfirmed — obscured by app overlay** |
+| 300–399 (unlisted) | 0 |
 | 400–499 | -1 |
 | 500+ | -2 |
 
-The shared scoring helper raises a `ValueError` for an
-unconfirmed bracket instead of returning an assumed score.
+The shared scoring helper returns zero for these two explicitly
+confirmed unlisted brackets, rather than substituting Yahoo defaults.
 
 ## Historical label quality: validate before modeling
 
@@ -99,6 +101,9 @@ rather than blindly using an opponent's final schedule score
 Similarly, net yards allowed must agree with the fantasy platform
 and team-stat definitions.
 
+The local audit also checks depth-chart K/PK rows to establish a
+pregame candidate population before model training.
+
 Run the local schema audit:
 
 ```cmd
@@ -111,8 +116,8 @@ team defensive columns, examples of missing long-kick/PAT events,
 and whether play-by-play has been downloaded. It creates **no
 new training data or production models**.
 
-**Modeling sequence:** verify source/label coverage; finish the
-remaining rule values; build a leakage-safe kicker pregame dataset
+**Modeling sequence:** verify pregame kicker candidate coverage,
+clarify any missed/blocked extra-point penalties; build a leakage-safe kicker pregame dataset
 and 2023–2025 walk-forward benchmark; choose a kicker architecture
 based on results; repeat for team-based D/ST using fully verified
 historical targets; integrate successful models into the weekly
