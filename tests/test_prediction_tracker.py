@@ -139,6 +139,54 @@ class CaptureTests(unittest.TestCase):
 
 
 class EvaluationTests(unittest.TestCase):
+    def test_latest_snapshot_excludes_postkickoff_projection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            forecasts = [
+                ("2026-10-02T19:00:00Z", 4.0),
+                ("2026-10-03T18:00:00Z", 6.0),
+                ("2026-10-04T18:00:00Z", 100.0),
+            ]
+            for index, (capture_time, projected) in enumerate(forecasts):
+                captured = pd.Timestamp(capture_time)
+                pd.DataFrame([{
+                    "position": "TE",
+                    "player_id": "TE-X",
+                    "player_name": "Example TE",
+                    "season": 2026,
+                    "week": 4,
+                    "team": "ARI",
+                    "opponent": "NYG",
+                    "game_id": "future",
+                    "kickoff_utc": KICKOFF.isoformat(),
+                    "captured_at_utc": captured.isoformat(),
+                    "prediction_file_written_utc": (
+                        captured - pd.Timedelta(minutes=1)
+                    ).isoformat(),
+                    "projection": projected,
+                    "role_probability": 0.8,
+                    "role_threshold": 0.5,
+                    "model_sha256": "test-model",
+                    "prediction_low_80": 1.0,
+                    "prediction_high_80": 15.0,
+                    "avg_fp_last_3": 5.0,
+                }]).to_csv(folder / f"snapshot_{index}.csv", index=False)
+
+            with patch.object(
+                scoring, "SNAPSHOT_DIR", folder
+            ), patch.object(
+                scoring, "load_schedule", side_effect=mock_schedule
+            ):
+                latest = scoring.read_snapshots("latest")
+                earliest = scoring.read_snapshots("earliest")
+
+        self.assertEqual(len(latest), 1)
+        self.assertEqual(float(latest["projection"].iloc[0]), 6.0)
+        self.assertEqual(float(earliest["projection"].iloc[0]), 4.0)
+        self.assertTrue(
+            latest["captured_at_utc"].iloc[0] < KICKOFF
+        )
+
     def test_pairwise_comparisons_do_not_cross_weeks(self):
         group = pd.DataFrame([
             {
