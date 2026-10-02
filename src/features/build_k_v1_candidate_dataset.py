@@ -495,9 +495,7 @@ def add_team_history(
         grouped = history.groupby(
             "team", sort=False
         )[source]
-        history[f"snapshot_team_prev_{short}"] = source_series = (
-            grouped.shift(0)
-        )
+        history[f"snapshot_team_prev_{short}"] = grouped.shift(0)
         # The row's own completed-game stats become usable only
         # in *later* games: merge_asof forbids exact week matches.
         for window in (3, 5):
@@ -673,11 +671,8 @@ def main() -> None:
         "team_spread_line", "game_total_line",
         "prior_chart_games",
         *[
-            f"{prefix}_{short}"
+            f"previous_{short}"
             for short in PLAYER_METRICS.values()
-            for prefix in [
-                "previous", "avg"
-            ] if prefix == "previous"
         ],
         *[
             f"avg_{short}_last_{window}"
