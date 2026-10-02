@@ -249,7 +249,7 @@ def main() -> None:
         )
     else:
         print(
-            "\\nSTEP 11/11 — Preserve prekickoff "
+            "\nSTEP 11/11 — Preserve prekickoff "
             "predictions: SKIPPED (requested)"
         )
 
