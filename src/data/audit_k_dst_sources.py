@@ -140,7 +140,7 @@ def summarize_kickers(path: Path, columns: set[str]) -> None:
 def inspect_kicker_depth_chart(year: int) -> None:
     """Check whether K/PK can be enumerated before games, including 2026."""
     path = RAW / f"depth_charts_{year}.csv"
-    print(f"\\n{path.relative_to(ROOT)} kicker candidate availability")
+    print(f"\n{path.relative_to(ROOT)} kicker candidate availability")
     if not path.exists():
         print("  NOT DOWNLOADED")
         return
