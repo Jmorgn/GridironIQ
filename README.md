@@ -734,6 +734,36 @@ Run the offline tests:
 py -m unittest discover -s tests -v
 ```
 
+## Kicker and D/ST Models — Scoring and Source Audit
+
+The league's screenshot-confirmed Kicker and Defense/Special Teams
+scoring values are recorded in
+[**Kicker and D/ST scoring rules**](docs/kicker_dst_scoring.md)
+and `src/scoring/league_rules.py`. The custom scoring includes
+field-goal distances and miss penalties, D/ST tackles for loss,
+three-and-outs, returns, and both points-allowed and
+yards-allowed bonuses/penalties.
+
+Three values are not visible in the screenshots and are **not
+guessed**: any penalty for missed field goals from 50+ yards;
+D/ST points allowed from 21–27; and D/ST yards allowed
+from 300–399. Missing/blocked PAT rules are also not shown.
+
+Run the source-coverage audit and offline scoring tests:
+
+```cmd
+py src\data\audit_k_dst_sources.py
+py -m unittest discover -s tests -v
+```
+
+The audit checks the real local nflverse distance-bucket
+kicking fields, aggregated defensive team data, and the
+absence/presence of any downloaded play-by-play. Do not
+train a Kicker or D/ST model until we can reconstruct
+the league's actual scoring without misleading labels.
+The existing QB/RB/WR/TE, RB/WR FLEX, weekly workflow,
+and prospective snapshots remain unchanged.
+
 ## Prospective Weekly Performance Tracker
 
 GridironIQ now records **genuine prekickoff forecasts**. The final step
