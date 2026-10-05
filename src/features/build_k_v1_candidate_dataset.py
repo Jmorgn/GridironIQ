@@ -88,6 +88,39 @@ def schedule_context() -> pd.DataFrame:
         how="inner",
         validate="one_to_one",
     )
+    # build_schedule_team_weeks stores spread from each team's
+    # perspective; negative conventionally means the team is favored.
+    # With total T and team spread S:
+    #   team implied = (T - S) / 2
+    #   opponent implied = (T + S) / 2
+    market_known = (
+        context["game_total_line"].notna()
+        & context["team_spread_line"].notna()
+    )
+    context["team_implied_points"] = np.where(
+        market_known,
+        (
+            pd.to_numeric(
+                context["game_total_line"], errors="coerce"
+            )
+            - pd.to_numeric(
+                context["team_spread_line"], errors="coerce"
+            )
+        ) / 2.0,
+        np.nan,
+    )
+    context["opponent_implied_points"] = np.where(
+        market_known,
+        (
+            pd.to_numeric(
+                context["game_total_line"], errors="coerce"
+            )
+            + pd.to_numeric(
+                context["team_spread_line"], errors="coerce"
+            )
+        ) / 2.0,
+        np.nan,
+    )
     return context[
         context["season"].between(2021, 2026)
     ].copy()
@@ -692,6 +725,7 @@ def main() -> None:
         "roof", "surface",
         "game_temp", "game_wind",
         "team_spread_line", "game_total_line",
+        "team_implied_points", "opponent_implied_points",
         "prior_chart_games",
         *[
             f"previous_{short}"
