@@ -70,15 +70,14 @@ class CaptureTests(unittest.TestCase):
             model.write_bytes(position.encode("utf-8"))
             self.models[position] = model
             self.files[position] = path
-            probabilities = config["probability_column"]
-            frame = pd.DataFrame([
+            probability_column = config["probability_column"]
+            rows = [
                 {
                     "season": 2026, "week": 4,
                     "player_id": f"{position}-good",
                     "player_name": f"{position} Good",
                     "team": "ARI", "opponent": "NYG",
                     "gridironiq_projection": 10.0,
-                    probabilities: 0.8,
                     "selected_team_qb": 1 if position == "QB" else np.nan,
                     "prediction_low_80": 2.0,
                     "prediction_high_80": 17.0,
@@ -90,10 +89,13 @@ class CaptureTests(unittest.TestCase):
                     "player_name": f"{position} Past",
                     "team": "PIT", "opponent": "CLE",
                     "gridironiq_projection": 20.0,
-                    probabilities: 0.9,
                     "selected_team_qb": 1 if position == "QB" else np.nan,
                 },
-            ])
+            ]
+            if probability_column is not None:
+                rows[0][probability_column] = 0.8
+                rows[1][probability_column] = 0.9
+            frame = pd.DataFrame(rows)
             frame.to_csv(path, index=False)
             generated = NOW.timestamp() - 30
             os.utime(path, (generated, generated))
@@ -117,18 +119,18 @@ class CaptureTests(unittest.TestCase):
 
     def test_capture_only_future_unfinished_games(self):
         result = capture.take_snapshot()
-        self.assertEqual(len(result), 4)
+        self.assertEqual(len(result), len(POSITIONS))
         self.assertEqual(set(result["position"]), set(POSITIONS))
         self.assertTrue(result["team"].eq("ARI").all())
         self.assertTrue(result["captured_at_utc"].eq(NOW.isoformat()).all())
         files = list((self.base / "snapshots").glob("*.csv"))
         self.assertEqual(len(files), 1)
-        self.assertEqual(len(pd.read_csv(files[0])), 4)
+        self.assertEqual(len(pd.read_csv(files[0])), len(POSITIONS))
 
         # Same ID/timestamp must not silently overwrite history.
         with self.assertRaises(FileExistsError):
             capture.take_snapshot()
-        self.assertEqual(len(pd.read_csv(files[0])), 4)
+        self.assertEqual(len(pd.read_csv(files[0])), len(POSITIONS))
 
     def test_stale_prediction_file_rejected(self):
         stale = NOW.timestamp() - 7200
@@ -279,6 +281,49 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(float(a["actual_role"]), 0.0)
         self.assertEqual(float(b["actual_fantasy_points"]), 0.0)
         self.assertEqual(float(b["actual_role"]), 0.0)
+
+    def test_kicker_has_no_role_metric_but_scores_actual(self):
+        snapshot = pd.DataFrame([
+            {
+                "season": 2026, "week": 4, "position": "K",
+                "player_id": "K-A", "team": "ARI",
+                "opponent": "NYG", "game_completed": True,
+                "projection": 9.0, "role_probability": np.nan,
+                "role_threshold": np.nan,
+                "prediction_low_80": 2.0,
+                "prediction_high_80": 15.0,
+                "avg_fp_last_3": 8.0,
+                "starter_cohort": 1,
+            }
+        ])
+        actual = pd.DataFrame([
+            {
+                "player_id": "K-A", "season": 2026,
+                "week": 4, "team": "ARI",
+                "actual_fantasy_points": 10.0,
+                "had_stat_row": 1,
+            }
+        ])
+        snaps = pd.DataFrame(columns=[
+            "player_id", "season", "week", "team",
+            "offense_pct", "offense_snaps", "has_snap_row",
+        ])
+        coverage = pd.DataFrame([
+            {
+                "season": 2026, "week": 4, "team": "ARI",
+                "boxscore_available": 1,
+                "snap_team_data_available": 1,
+            }
+        ])
+        with patch.object(
+            scoring, "load_actual_stats",
+            return_value=(actual, snaps, coverage),
+        ):
+            result, pending = scoring.attach_actuals(snapshot)
+        self.assertEqual(len(pending), 0)
+        self.assertEqual(float(result["actual_fantasy_points"].iloc[0]), 10.0)
+        self.assertTrue(pd.isna(result["actual_role"].iloc[0]))
+        self.assertTrue(pd.isna(result["role_brier"].iloc[0]))
 
     def test_pending_boxscore_cannot_be_treated_as_zero(self):
         snapshot = pd.DataFrame([
