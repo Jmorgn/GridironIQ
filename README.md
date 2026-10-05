@@ -803,12 +803,61 @@ data/processed/k_v1_candidate_dataset.csv
 data/processed/k_v1_walk_forward_results.csv
 ```
 
-The validation compares historical-mean, player-last-3 and team-K-last-3
-baselines with Ridge, Random Forest and Gradient Boosting. It reports
-overall, listed-K1, actual kicking-participant and **fixed pregame
-top-12** MAE across 2023–2025, with 2026 excluded from model selection.
-The dataset builder also prints observed active-kicker candidate
-coverage by year and stops if overall coverage falls below 90%.
+The first local benchmark produced **2,773 historical candidates** with
+**95.3% observed active-kicker candidate coverage** (2025: **98.9%**) and
+30 future/unplayed 2026 candidates with 100% timestamp-verified pregame
+depth-chart snapshots.
+
+Kicker v1's best average overall result was Gradient Boosting at **3.843
+MAE**, versus **4.020** for the historical-mean baseline (about a 4.4%
+improvement). That edge was not stable enough for production: the mean
+baseline won the 2023 fold, Random Forest narrowly led in 2024, and Ridge
+led in 2025. On actual kickers who recorded an FG/PAT attempt, Gradient
+Boosting improved the historical-mean baseline by only about **0.01 FP**
+on average. Therefore **Kicker v1 is not promoted to production**.
+
+### Kicker v2 — signal and architecture experiments
+
+Kicker v2 keeps the same pregame candidate construction but adds
+**team implied points** and **opponent implied points** derived from the
+pregame game total and team-perspective spread:
+
+```text
+team implied points     = (game total - team spread) / 2
+opponent implied points = (game total + team spread) / 2
+```
+
+The v2 walk-forward script predeclares two experiments rather than
+changing objectives after seeing results:
+
+1. Gradient Boosting feature ablation: player history → team offense/
+   kicking history → opponent kicking opportunities → market context →
+   roof/surface/home-away context → team/opponent identity.
+2. Full-feature architecture comparison: Ridge, Random Forest,
+   Gradient Boosting, equal-weight ensemble, and a two-stage model using
+   `P(any FG/PAT attempt) × E(K fantasy points | active kicker)`.
+
+All models use the same 2023–2025 walk-forward folds and fixed pregame
+top-12 cohort; 2026 remains excluded from selection. Historical
+2021–2024 depth-chart publication timestamps are still not independently
+verifiable, so they remain a limitation of the retrospective benchmark.
+
+Run:
+
+```cmd
+py src\features\build_k_v1_candidate_dataset.py
+py src\models\walk_forward_k_v2.py
+```
+
+Output:
+
+```text
+data/processed/k_v2_walk_forward_results.csv
+```
+
+We will only promote a Kicker model if the v2 results show a meaningful,
+reasonably stable improvement rather than a tiny average edge driven by
+one test season.
 
 D/ST remains at the data-source audit stage until its play-level
 statistics and label reconciliation are verified. The existing
