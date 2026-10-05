@@ -25,24 +25,35 @@ POSITIONS = {
         "role_threshold": 0.50,
         "starter_count": 12,
         "role_name": ">=50% offensive snaps",
+        "has_role_model": True,
     },
     "RB": {
         "probability_column": "rb_role_probability",
         "role_threshold": 0.35,
         "starter_count": 24,
         "role_name": ">=35% offensive snaps",
+        "has_role_model": True,
     },
     "WR": {
         "probability_column": "wr_role_probability",
         "role_threshold": 0.65,
         "starter_count": 24,
         "role_name": ">=65% offensive snaps",
+        "has_role_model": True,
     },
     "TE": {
         "probability_column": "te_role_probability",
         "role_threshold": 0.50,
         "starter_count": 12,
         "role_name": ">=50% offensive snaps",
+        "has_role_model": True,
+    },
+    "K": {
+        "probability_column": None,
+        "role_threshold": None,
+        "starter_count": 12,
+        "role_name": "direct regression; no role model",
+        "has_role_model": False,
     },
 }
 
