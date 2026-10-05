@@ -584,14 +584,14 @@ def _print_lineup(
     bench: pd.DataFrame,
     unavailable: pd.DataFrame,
 ) -> None:
-    first = lineup.iloc[0]
     total = lineup["gridironiq_projection"].sum()
+    season = int(lineup["season"].iloc[0])
+    week = int(lineup["week"].iloc[0])
 
     print("GRIDIRONIQ OPTIMAL STARTING LINEUP")
     print("=" * 112)
     print(
-        f"Season {int(first['season']) if 'season' in first else '?'}"
-        if False else
+        f"Season {season} | Week {week} | "
         f"Projected starter total: {total:.2f} FP"
     )
     display = lineup[
