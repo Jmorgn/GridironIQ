@@ -223,6 +223,9 @@ data/raw/*
 data/processed/*
 !data/processed/.gitkeep
 
+# Local roster input (personal; not committed)
+data/roster.csv
+
 # Immutable local-only prekickoff forecast history
 data/snapshots/
 
