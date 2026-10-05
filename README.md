@@ -658,7 +658,7 @@ py compare_tes.py "George Kittle" "Brock Bowers"
 
 After TE has been trained once, `py run_weekly.py` runs
 QB, RB, WR, and TE together. `py run_weekly.py --retrain` refits
-all four position models. TE-specific opponent features have not
+all five production position models. TE-specific opponent features have not
 yet been isolated in a feature ablation experiment.
 
 
