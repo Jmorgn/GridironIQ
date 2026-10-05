@@ -810,9 +810,8 @@ def main() -> None:
     print(f"Output columns: {len(fields)}")
     print(f"WRITE {OUTPUT_FILE}")
     print(
-        "RESEARCH DATASET ONLY: scoring rules are finalized; "
-        "pregame candidate coverage and model accuracy "
-        "still require walk-forward validation."
+        "PRODUCTION K CANDIDATE DATASET: scoring rules are finalized; "
+        "production K v2 consumes this leakage-safe pregame table."
     )
 
 
