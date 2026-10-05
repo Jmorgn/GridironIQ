@@ -1,4 +1,4 @@
-"""Run the complete weekly GridironIQ QB + RB + WR + TE workflow.
+"""Run the complete weekly GridironIQ QB + RB + WR + TE + K workflow.
 
 Default weekly workflow:
 1. Refresh live nflverse data.
@@ -7,15 +7,17 @@ Default weekly workflow:
 4. Rebuild RB v2 pregame candidate dataset.
 5. Rebuild WR v2 pregame candidate dataset.
 6. Rebuild TE v2 pregame candidate dataset.
-7. Generate current-week QB rankings from saved models.
-8. Generate current-week RB rankings from saved models.
-9. Generate current-week WR rankings from saved models.
-10. Generate current-week TE rankings from saved models.
-11. Build RB/WR-only FLEX rankings from the official RB and WR projections.
-12. Save an immutable prekickoff snapshot of all four candidate pools.
+7. Rebuild K pregame candidate dataset.
+8. Generate current-week QB rankings.
+9. Generate current-week RB rankings.
+10. Generate current-week WR rankings.
+11. Generate current-week TE rankings.
+12. Generate current-week K rankings.
+13. Build RB/WR-only FLEX rankings.
+14. Save an immutable prekickoff snapshot of all production pools.
 
 Use --retrain when you intentionally want to refit the official QB, RB,
-WR, and TE v2 models before generating rankings.
+WR, TE, and K production models before generating rankings.
 """
 
 from __future__ import annotations
@@ -45,10 +47,7 @@ def run_step(
         check=True,
     )
 
-    elapsed = (
-        time.perf_counter()
-        - start
-    )
+    elapsed = time.perf_counter() - start
     print(
         f"\nDONE: {label} "
         f"({elapsed:.1f}s)"
@@ -59,16 +58,15 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Run the weekly GridironIQ "
-            "QB + RB + WR + TE v2 pipeline."
+            "QB + RB + WR + TE + K production pipeline."
         )
     )
     parser.add_argument(
         "--retrain",
         action="store_true",
         help=(
-            "Retrain the official QB, RB, "
-            "WR and TE v2 models on 2021-2025 "
-            "before producing weekly rankings."
+            "Retrain the official QB, RB, WR, TE and K models "
+            "on 2021-2025 before producing weekly rankings."
         ),
     )
     parser.add_argument(
@@ -93,19 +91,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    print(
-        "GRIDIRONIQ WEEKLY PIPELINE"
-    )
+    print("GRIDIRONIQ WEEKLY PIPELINE")
     print("=" * 78)
-    print(
-        f"Python: {sys.executable}"
-    )
-    print(
-        f"Project: {ROOT}"
-    )
-    print(
-        "Positions: QB, RB, WR, TE"
-    )
+    print(f"Python: {sys.executable}")
+    print(f"Project: {ROOT}")
+    print("Positions: QB, RB, WR, TE, K")
     print(
         "Retrain models: "
         f"{'YES' if args.retrain else 'NO'}"
@@ -113,181 +103,130 @@ def main() -> None:
 
     if not args.skip_download:
         run_step(
-            "STEP 1/12 — Refresh live NFL data",
-            ROOT
-            / "src"
-            / "data"
-            / "download_nfl_data.py",
+            "STEP 1/14 — Refresh live NFL data",
+            ROOT / "src" / "data" / "download_nfl_data.py",
         )
     else:
         print(
-            "\nSTEP 1/12 — Refresh live NFL "
+            "\nSTEP 1/14 — Refresh live NFL "
             "data: SKIPPED"
         )
 
     run_step(
-        "STEP 2/12 — Rebuild processed "
-        "historical tables",
-        ROOT
-        / "src"
-        / "data"
-        / "build_historical_tables.py",
+        "STEP 2/14 — Rebuild processed historical tables",
+        ROOT / "src" / "data" / "build_historical_tables.py",
     )
 
     run_step(
-        "STEP 3/12 — Build QB v2 pregame "
-        "candidate dataset",
-        ROOT
-        / "src"
-        / "features"
-        / "build_qb_v2_candidate_dataset.py",
+        "STEP 3/14 — Build QB v2 pregame candidate dataset",
+        ROOT / "src" / "features" / "build_qb_v2_candidate_dataset.py",
     )
 
     run_step(
-        "STEP 4/12 — Build RB v2 pregame "
-        "candidate dataset",
-        ROOT
-        / "src"
-        / "features"
-        / "build_rb_v2_candidate_dataset.py",
+        "STEP 4/14 — Build RB v2 pregame candidate dataset",
+        ROOT / "src" / "features" / "build_rb_v2_candidate_dataset.py",
     )
 
     run_step(
-        "STEP 5/12 — Build WR v2 pregame "
-        "candidate dataset",
-        ROOT
-        / "src"
-        / "features"
-        / "build_wr_v2_candidate_dataset.py",
+        "STEP 5/14 — Build WR v2 pregame candidate dataset",
+        ROOT / "src" / "features" / "build_wr_v2_candidate_dataset.py",
     )
 
     run_step(
-        "STEP 6/12 — Build TE v2 pregame "
-        "candidate dataset",
-        ROOT
-        / "src"
-        / "features"
-        / "build_te_v2_candidate_dataset.py",
+        "STEP 6/14 — Build TE v2 pregame candidate dataset",
+        ROOT / "src" / "features" / "build_te_v2_candidate_dataset.py",
+    )
+
+    run_step(
+        "STEP 7/14 — Build K pregame candidate dataset",
+        ROOT / "src" / "features" / "build_k_v1_candidate_dataset.py",
     )
 
     if args.retrain:
         run_step(
-            "OPTIONAL — Retrain official "
-            "QB v2 models",
-            ROOT
-            / "src"
-            / "models"
-            / "train_qb_v2.py",
+            "OPTIONAL — Retrain official QB v2 models",
+            ROOT / "src" / "models" / "train_qb_v2.py",
         )
         run_step(
-            "OPTIONAL — Retrain official "
-            "RB v2 models",
-            ROOT
-            / "src"
-            / "models"
-            / "train_rb_v2.py",
+            "OPTIONAL — Retrain official RB v2 models",
+            ROOT / "src" / "models" / "train_rb_v2.py",
         )
         run_step(
-            "OPTIONAL — Retrain official "
-            "WR v2 models",
-            ROOT
-            / "src"
-            / "models"
-            / "train_wr_v2.py",
+            "OPTIONAL — Retrain official WR v2 models",
+            ROOT / "src" / "models" / "train_wr_v2.py",
         )
         run_step(
-            "OPTIONAL — Retrain official "
-            "TE v2 models",
-            ROOT
-            / "src"
-            / "models"
-            / "train_te_v2.py",
+            "OPTIONAL — Retrain official TE v2 models",
+            ROOT / "src" / "models" / "train_te_v2.py",
+        )
+        run_step(
+            "OPTIONAL — Retrain official K v2 model",
+            ROOT / "src" / "models" / "train_k_v2.py",
         )
 
     run_step(
-        "STEP 7/12 — Generate current-week "
-        "QB rankings",
-        ROOT
-        / "src"
-        / "models"
-        / "predict_qb_v2.py",
+        "STEP 8/14 — Generate current-week QB rankings",
+        ROOT / "src" / "models" / "predict_qb_v2.py",
     )
 
     run_step(
-        "STEP 8/12 — Generate current-week "
-        "RB rankings",
-        ROOT
-        / "src"
-        / "models"
-        / "predict_rb_v2.py",
+        "STEP 9/14 — Generate current-week RB rankings",
+        ROOT / "src" / "models" / "predict_rb_v2.py",
     )
 
     run_step(
-        "STEP 9/12 — Generate current-week "
-        "WR rankings",
-        ROOT
-        / "src"
-        / "models"
-        / "predict_wr_v2.py",
+        "STEP 10/14 — Generate current-week WR rankings",
+        ROOT / "src" / "models" / "predict_wr_v2.py",
     )
 
     run_step(
-        "STEP 10/12 — Generate current-week "
-        "TE rankings",
-        ROOT
-        / "src"
-        / "models"
-        / "predict_te_v2.py",
+        "STEP 11/14 — Generate current-week TE rankings",
+        ROOT / "src" / "models" / "predict_te_v2.py",
     )
 
     run_step(
-        "STEP 11/12 — Build RB/WR-only FLEX rankings",
-        ROOT
-        / "src"
-        / "models"
-        / "rank_flex.py",
+        "STEP 12/14 — Generate current-week K rankings",
+        ROOT / "src" / "models" / "predict_k_v2.py",
+    )
+
+    run_step(
+        "STEP 13/14 — Build RB/WR-only FLEX rankings",
+        ROOT / "src" / "models" / "rank_flex.py",
     )
 
     if not args.no_snapshot:
         run_step(
-            "STEP 12/12 — Preserve prekickoff predictions",
-            ROOT
-            / "src"
-            / "evaluation"
-            / "snapshot_predictions.py",
+            "STEP 14/14 — Preserve prekickoff predictions",
+            ROOT / "src" / "evaluation" / "snapshot_predictions.py",
         )
     else:
         print(
-            "\nSTEP 12/12 — Preserve prekickoff "
+            "\nSTEP 14/14 — Preserve prekickoff "
             "predictions: SKIPPED (requested)"
         )
 
-    print(
-        "\n" + "=" * 78
-    )
-    print(
-        "GRIDIRONIQ WEEKLY PIPELINE COMPLETE"
-    )
+    print("\n" + "=" * 78)
+    print("GRIDIRONIQ WEEKLY PIPELINE COMPLETE")
     print("=" * 78)
     print(
         "QB rankings: "
-        "data/processed/"
-        "qb_v2_weekly_rankings.csv"
+        "data/processed/qb_v2_weekly_rankings.csv"
     )
     print(
         "RB rankings: "
-        "data/processed/"
-        "rb_v2_weekly_rankings.csv"
+        "data/processed/rb_v2_weekly_rankings.csv"
     )
     print(
         "WR rankings: "
-        "data/processed/"
-        "wr_v2_weekly_rankings.csv"
+        "data/processed/wr_v2_weekly_rankings.csv"
     )
     print(
         "TE rankings: "
-        "data/processed/"
-        "te_v2_weekly_rankings.csv"
+        "data/processed/te_v2_weekly_rankings.csv"
+    )
+    print(
+        "K rankings: "
+        "data/processed/k_v2_weekly_rankings.csv"
     )
     print(
         "RB/WR FLEX rankings: "
@@ -299,7 +238,7 @@ def main() -> None:
     )
     print(
         "After games finish, evaluate with: "
-        "py src\\\\evaluation\\\\evaluate_predictions.py"
+        "py src\\evaluation\\evaluate_predictions.py"
     )
 
 
