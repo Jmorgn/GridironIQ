@@ -25,7 +25,9 @@ from tracker_common import (
 
 # Use the project's original scoring function; do not duplicate or change it.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "features"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scoring"))
 from build_qb_model_dataset import custom_fantasy_points  # noqa: E402
+from league_rules import kicker_known_components  # noqa: E402
 
 KEYS = [
     "position", "player_id", "season", "week", "team", "opponent",
@@ -197,6 +199,18 @@ def load_actual_stats(
     ].copy()
     players["team"] = normalize_team(players["team"])
     players["_fantasy_points"] = custom_fantasy_points(players)
+
+    # Kicker uses league-specific distance/PAT scoring rather than
+    # the offensive-player fantasy function.
+    kicker_mask = players["position"].astype(str).eq("K")
+    if kicker_mask.any():
+        kicker_points = kicker_known_components(
+            players.loc[kicker_mask]
+        )["fantasy_points"]
+        players.loc[
+            kicker_mask, "_fantasy_points"
+        ] = kicker_points.to_numpy(dtype=float)
+
     actual = (
         players.groupby(ACTUAL_KEYS, as_index=False)
         .agg(
@@ -330,14 +344,18 @@ def attach_actuals(
     )
     completed.loc[known_zero, "offense_pct"] = 0.0
     completed.loc[known_zero, "offense_snaps"] = 0.0
-    completed["actual_role"] = np.where(
-        completed["offense_pct"].notna(),
-        (
-            completed["offense_pct"]
-            >= completed["role_threshold"]
-        ).astype(float),
-        np.nan,
+    completed["actual_role"] = np.nan
+    role_positions = completed["position"].map(
+        lambda pos: bool(POSITIONS[pos]["has_role_model"])
     )
+    known_role = (
+        role_positions
+        & completed["offense_pct"].notna()
+    )
+    completed.loc[known_role, "actual_role"] = (
+        completed.loc[known_role, "offense_pct"]
+        >= completed.loc[known_role, "role_threshold"]
+    ).astype(float)
     completed["played_any_snap"] = np.where(
         completed["offense_snaps"].notna(),
         (
@@ -370,18 +388,24 @@ def attach_actuals(
         ).astype(float),
         np.nan,
     )
+    role_probability = pd.to_numeric(
+        completed["role_probability"],
+        errors="coerce",
+    )
     completed["role_brier"] = np.where(
-        completed["actual_role"].notna(),
+        completed["actual_role"].notna()
+        & role_probability.notna(),
         (
-            completed["role_probability"]
+            role_probability
             - completed["actual_role"]
         ) ** 2,
         np.nan,
     )
     completed["role_correct_50pct"] = np.where(
-        completed["actual_role"].notna(),
+        completed["actual_role"].notna()
+        & role_probability.notna(),
         (
-            completed["role_probability"].ge(0.50)
+            role_probability.ge(0.50)
             == completed["actual_role"].eq(1)
         ).astype(float),
         np.nan,
@@ -575,14 +599,15 @@ def evaluate(selection: str = "latest") -> None:
     print("\nRole-calibration table: "
           + str(REPORT_DIR / "role_calibration.csv"))
     print(
-        "Starter cohorts: QB top 12, RB/WR top 24, TE top 12 "
+        "Starter cohorts: QB/K top 12, RB/WR top 24, TE top 12 "
         "from saved pregame projections. "
         "Pairwise accuracy compares completed starter-cohort "
         "player pairs and excludes ties; it does not measure "
         "the user's actual start/sit decisions."
     )
     print(
-        "Missing snap coverage is excluded from role metrics. "
+        "Missing snap coverage is excluded from role metrics; "
+        "Kicker has no role model, so K role metrics are intentionally blank. "
         "Historical 80% interval coverage on these live games "
         "is measured independently of its calibration sample."
     )
