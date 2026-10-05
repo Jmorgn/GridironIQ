@@ -900,10 +900,69 @@ the prospective tracker records K role metrics as intentionally blank
 while still evaluating fantasy-point MAE, starter-cohort MAE, interval
 coverage, last-three baseline error, and pairwise ranking.
 
-D/ST remains at the data-source audit stage until its play-level
-statistics and label reconciliation are verified. The existing
-QB/RB/WR/TE models, RB/WR FLEX, weekly workflow and prospective
-snapshots remain unchanged.
+D/ST is intentionally deferred for now. Production scope is
+**QB + RB + WR + TE + K + RB/WR FLEX**.
+
+## Roster-Aware Lineup Optimizer
+
+After `py run_weekly.py` generates the official weekly rankings, the
+lineup optimizer can turn **your actual roster** into the highest-
+projected legal starting lineup.
+
+Supported slots are QB, RB, WR, TE and K. FLEX is **RB/WR only** for
+this league. D/ST is intentionally ignored by the optimizer.
+
+Create a local `data/roster.csv` (Git-ignored) with:
+
+```csv
+player_name,position,player_id
+Dak Prescott,QB,
+Example Running Back,RB,
+Example Receiver,WR,
+Example Tight End,TE,
+Example Kicker,K,
+Example Defense,D/ST,
+```
+
+Only `player_name` is required. `position` and `player_id` are
+optional but recommended when a name could be ambiguous. A copyable
+template is also available at `examples/roster.example.csv`.
+
+Run:
+
+```cmd
+py src\lineup\optimize_lineup.py --roster data\roster.csv
+```
+
+The convenience defaults are **1 QB, 2 RB, 2 WR, 1 TE, 1 RB/WR FLEX,
+1 K**. These defaults are not assumed to be the league's actual lineup
+rules; override any count explicitly, for example:
+
+```cmd
+py src\lineup\optimize_lineup.py --roster data\roster.csv --qb 1 --rb 2 --wr 3 --te 1 --flex 1 --k 1
+```
+
+The optimizer performs an exact legal-lineup search rather than filling
+slots greedily. No player can occupy two slots, and TE/K can never enter
+FLEX. It writes:
+
+```text
+data/processed/optimal_lineup.csv
+data/processed/lineup_bench.csv
+data/processed/lineup_unavailable.csv
+```
+
+For each starter it shows the best one-for-one eligible bench
+alternative, projected point margin, and whether their individual 80%
+historical ranges overlap. Player intervals are **not** summed into a
+fake lineup-level 80% interval.
+
+For a complete lineup decision, run the optimizer **before the first
+kickoff of the week**. Once a game starts, that player's live projection
+is intentionally absent from the current pregame ranking pool. Players
+on bye, already locked, mistyped, or otherwise unavailable are reported
+instead of silently ignored. Use `--strict-unmatched` if any unmatched
+roster row should fail the run.
 
 ## Prospective Weekly Performance Tracker
 
