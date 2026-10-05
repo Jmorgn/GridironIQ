@@ -1,6 +1,6 @@
-"""Save an immutable, timestamped snapshot of all four pregame candidate pools.
+"""Save an immutable, timestamped snapshot of all production pregame candidate pools.
 
-Run automatically after run_weekly.py, or manually just after the four
+Run automatically after run_weekly.py, or manually just after the
 prediction scripts. Only games with an explicit, future kickoff (Eastern
 nflverse schedule time) and no recorded final score are captured.
 Never reconstruct "pregame" projections from postgame model outputs.
@@ -62,8 +62,10 @@ def load_position(
     required = [
         "player_id", "player_name", "season", "week", "team",
         "opponent", "gridironiq_projection",
-        POSITIONS[position]["probability_column"],
     ]
+    probability_column = POSITIONS[position]["probability_column"]
+    if probability_column is not None:
+        required.append(probability_column)
     missing = [col for col in required if col not in frame.columns]
     if missing:
         raise RuntimeError(
@@ -94,10 +96,13 @@ def load_position(
     ].copy()
 
     frame["position"] = position
-    frame["role_probability"] = pd.to_numeric(
-        frame[POSITIONS[position]["probability_column"]],
-        errors="coerce",
-    )
+    if POSITIONS[position]["has_role_model"]:
+        frame["role_probability"] = pd.to_numeric(
+            frame[probability_column],
+            errors="coerce",
+        )
+    else:
+        frame["role_probability"] = pd.NA
     frame["projection"] = pd.to_numeric(
         frame["gridironiq_projection"], errors="coerce"
     )
@@ -136,7 +141,7 @@ def take_snapshot(max_age_minutes: float = 60.0) -> pd.DataFrame:
     if len(weeks) != 1:
         raise RuntimeError(
             "Position models disagree on upcoming season/week: "
-            f"{sorted(weeks)}. Refresh all four positions together."
+            f"{sorted(weeks)}. Refresh all production positions together."
         )
 
     candidates = pd.concat(frames, ignore_index=True)
@@ -167,17 +172,32 @@ def take_snapshot(max_age_minutes: float = 60.0) -> pd.DataFrame:
         )
     candidates = candidates.drop(columns="_merge")
 
-    bad_predictions = (
-        candidates["projection"].isna()
-        | candidates["role_probability"].isna()
+    if candidates["projection"].isna().any():
+        raise RuntimeError("Snapshot has nonnumeric projections.")
+
+    role_required = candidates["position"].map(
+        lambda pos: bool(POSITIONS[pos]["has_role_model"])
     )
-    if bad_predictions.any():
+    bad_role = (
+        role_required
+        & pd.to_numeric(
+            candidates["role_probability"], errors="coerce"
+        ).isna()
+    )
+    if bad_role.any():
         raise RuntimeError(
-            "Snapshot has nonnumeric projections or role probabilities."
+            "Snapshot has missing role probabilities for a role-modeled "
+            "position."
         )
+    role_values = pd.to_numeric(
+        candidates.loc[
+            role_required, "role_probability"
+        ],
+        errors="coerce",
+    )
     if (
-        candidates["role_probability"].lt(0)
-        | candidates["role_probability"].gt(1)
+        role_values.lt(0)
+        | role_values.gt(1)
     ).any():
         raise RuntimeError("Role probabilities must be in [0, 1].")
 
@@ -279,7 +299,7 @@ def take_snapshot(max_age_minutes: float = 60.0) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Capture all four GridironIQ pregame candidate pools."
+        description="Capture all GridironIQ production pregame candidate pools."
     )
     parser.add_argument(
         "--max-age-minutes",
