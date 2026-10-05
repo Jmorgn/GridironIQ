@@ -157,7 +157,7 @@ The v1 **8.470 MAE** and v2 **5.321 all-candidate MAE** are not directly compara
 
 ## Weekly Workflow
 
-After the QB v2, RB v2, WR v2, and TE v2 models have each been trained once, the normal weekly workflow is a single command:
+After the QB v2, RB v2, WR v2, TE v2, and K v2 models have each been trained once, the normal weekly workflow is a single command:
 
 ```cmd
 py run_weekly.py
@@ -171,12 +171,14 @@ That command:
 4. rebuilds the RB v2 pregame candidate dataset;
 5. rebuilds the WR v2 pregame candidate dataset;
 6. rebuilds the TE v2 pregame candidate dataset;
-7. loads the saved QB v2 model bundle and generates the earliest upcoming week's QB rankings;
-8. loads the saved RB v2 model bundle and generates the earliest upcoming week's RB rankings;
-9. loads the saved WR v2 model bundle and generates the earliest upcoming week's WR rankings;
-10. loads the saved TE v2 model bundle and generates the earliest upcoming week's TE rankings;
-11. merges RB and WR rankings into the RB/WR-only FLEX pool;
-12. saves immutable, timestamped predictions for every candidate whose game has not kicked off.
+7. rebuilds the K pregame candidate dataset;
+8. loads the saved QB v2 model bundle and generates the earliest upcoming week's QB rankings;
+9. loads the saved RB v2 model bundle and generates the earliest upcoming week's RB rankings;
+10. loads the saved WR v2 model bundle and generates the earliest upcoming week's WR rankings;
+11. loads the saved TE v2 model bundle and generates the earliest upcoming week's TE rankings;
+12. loads the saved K v2 bundle and generates the earliest upcoming week's K rankings;
+13. merges RB and WR rankings into the RB/WR-only FLEX pool;
+14. saves immutable, timestamped predictions for every candidate whose game has not kicked off.
 
 The main weekly outputs are:
 
@@ -185,6 +187,7 @@ data/processed/qb_v2_weekly_rankings.csv
 data/processed/rb_v2_weekly_rankings.csv
 data/processed/wr_v2_weekly_rankings.csv
 data/processed/te_v2_weekly_rankings.csv
+data/processed/k_v2_weekly_rankings.csv
 data/processed/flex_weekly_rankings.csv
 ```
 
@@ -195,13 +198,14 @@ data/processed/qb_v2_all_future_candidates.csv
 data/processed/rb_v2_all_future_candidates.csv
 data/processed/wr_v2_all_future_candidates.csv
 data/processed/te_v2_all_future_candidates.csv
+data/processed/k_v2_all_future_candidates.csv
 ```
 
 The weekly rankings file also includes `key_positives` and `key_negatives` columns. These are descriptive context signals built from recent fantasy form, betting environment, opponent pass-defense trends, pass rush, rest, home/away status, weather, injury status, and role confidence. They are intentionally labeled as context signals rather than exact Random Forest feature-attribution values.
 
 The command-line report prints the top 10 QBs with a short explanation of why GridironIQ likes or dislikes the matchup.
 
-Use `py run_weekly.py --retrain` only when intentionally refitting the official QB v2, RB v2, WR v2, and TE v2 models. Normal weekly refreshes do not need to retrain the 2021-2025 models.
+Use `py run_weekly.py --retrain` only when intentionally refitting the official QB v2, RB v2, WR v2, TE v2, and K v2 models. Normal weekly refreshes do not need to retrain the 2021-2025 models.
 
 ## QB Start / Sit Comparison
 
@@ -855,9 +859,46 @@ Output:
 data/processed/k_v2_walk_forward_results.csv
 ```
 
-We will only promote a Kicker model if the v2 results show a meaningful,
-reasonably stable improvement rather than a tiny average edge driven by
-one test season.
+The local Kicker v2 experiment produced the following 2023–2025
+averages:
+
+| Architecture / feature set | MAE | K1 MAE | Active-K MAE | Fixed top-12 MAE |
+| --- | ---: | ---: | ---: | ---: |
+| **Gradient Boosting — All no IDs** | **3.831** | **3.833** | 3.669 | 3.785 |
+| Gradient Boosting — All + IDs | 3.831 | 3.834 | **3.666** | 3.778 |
+| Equal ensemble — All + IDs | 3.849 | 3.846 | 3.682 | **3.769** |
+| Active-probability × conditional GB | 3.851 | 3.833 | 3.703 | 3.780 |
+
+Production selects **direct Gradient Boosting with All no IDs**. The
+ID-enabled version did not improve average MAE, so team/opponent
+identity is excluded for robustness. The activity-gated architecture
+also did not improve fantasy-point error despite respectable role AUC.
+
+Relative to the historical-mean baseline (4.020 MAE), production K v2
+improves average all-candidate error by about **4.7%**. This remains a
+small signal: kicker outcomes are noisy, and prospective 2026 tracking
+must determine whether the edge persists.
+
+Train once and generate rankings:
+
+```cmd
+py src\models\train_k_v2.py
+py src\models\predict_k_v2.py
+```
+
+Production outputs:
+
+```text
+models/k_v2_bundle.joblib
+data/processed/k_v2_all_future_candidates.csv
+data/processed/k_v2_weekly_rankings.csv
+```
+
+K v2 uses an empirical 80% interval calibrated from the exact 2023–2025
+walk-forward residuals. It has **no fake activity or role probability**:
+the prospective tracker records K role metrics as intentionally blank
+while still evaluating fantasy-point MAE, starter-cohort MAE, interval
+coverage, last-three baseline error, and pairwise ranking.
 
 D/ST remains at the data-source audit stage until its play-level
 statistics and label reconciliation are verified. The existing
@@ -867,8 +908,8 @@ snapshots remain unchanged.
 ## Prospective Weekly Performance Tracker
 
 GridironIQ now records **genuine prekickoff forecasts**. The final step
-of `py run_weekly.py` snapshots the four positions' **all-future
-candidate files** (not only the visible top-ranked players, which would
+of `py run_weekly.py` snapshots the production positions' **all-future
+candidate files**, including Kicker (not only the visible top-ranked players, which would
 omit backup QBs and inflate all-candidate metrics).
 
 A snapshot contains every candidate's original projection, role
@@ -934,8 +975,9 @@ Metrics include MAE, RMSE, mean signed error, **projected-starter
 MAE**, last-three baseline error on the *same eligible rows*, role
 Brier score and 50%-threshold accuracy, genuinely prospective
 80%-interval coverage, and correct ordering of projected-starter
-pairs. Starter groups are the pregame **QB top 12, RB/WR top 24 and
-TE top 12**. Pairwise ordering is a start/sit *ranking proxy*,
+pairs. Starter groups are the pregame **QB/K top 12, RB/WR top 24 and
+TE top 12**. Kicker has no role-classification metric because its
+production architecture is direct regression. Pairwise ordering is a start/sit *ranking proxy*,
 not a record of the user's real fantasy lineup decisions. Pairs
 are compared only within the same season, week and position.
 
