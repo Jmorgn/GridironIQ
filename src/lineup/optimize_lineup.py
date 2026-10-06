@@ -733,6 +733,43 @@ def main() -> None:
         pool,
         strict_unmatched=args.strict_unmatched,
     )
+
+    # Persist diagnostics even when no roster player can be matched.
+    LINEUP_FILE.parent.mkdir(
+        parents=True, exist_ok=True
+    )
+    unavailable.to_csv(UNAVAILABLE_FILE, index=False)
+
+    if roster.empty:
+        first = pool.iloc[0]
+        print("GRIDIRONIQ LINEUP MATCH FAILURE")
+        print("=" * 88)
+        print(
+            f"Current projection pool: Season {int(first['season'])} "
+            f"| Week {int(first['week'])}"
+        )
+        print(
+            "No roster players matched the current pregame rankings."
+        )
+        if not unavailable.empty:
+            print("\nUNAVAILABLE / UNMATCHED ROSTER ROWS")
+            print("=" * 88)
+            print(unavailable.to_string(index=False))
+        print(
+            "\nMost common causes: the weekly rankings are stale, "
+            "the player's game has already kicked off, the player is "
+            "on bye, or the roster name/ID does not match."
+        )
+        print(
+            "Run 'py run_weekly.py' to refresh to the next available "
+            "week, then retry the optimizer."
+        )
+        print(f"Saved diagnostics: {UNAVAILABLE_FILE}")
+        raise RuntimeError(
+            "No roster players matched the current pregame projection "
+            "pool; see lineup_unavailable.csv for details."
+        )
+
     slots = build_slots(
         qb=args.qb,
         rb=args.rb,
@@ -753,9 +790,6 @@ def main() -> None:
     bench.insert(0, "week", int(first["week"]))
     bench.insert(0, "season", int(first["season"]))
 
-    LINEUP_FILE.parent.mkdir(
-        parents=True, exist_ok=True
-    )
     lineup.to_csv(LINEUP_FILE, index=False)
     bench.to_csv(BENCH_FILE, index=False)
     unavailable.to_csv(UNAVAILABLE_FILE, index=False)
