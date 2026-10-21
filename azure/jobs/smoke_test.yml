@@ -1,0 +1,11 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+type: command
+display_name: GridironIQ Azure smoke test
+experiment_name: gridironiq-azure-setup
+description: Verify that Azure ML can execute the GridironIQ repository on the managed CPU cluster.
+code: ../..
+command: python azure/jobs/smoke_test.py
+environment: azureml://registries/azureml/environments/sklearn-1.5/labels/latest
+compute: azureml:gridironiq-cpu
+resources:
+  instance_count: 1
